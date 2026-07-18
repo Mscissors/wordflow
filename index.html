@@ -505,7 +505,7 @@
         A new letter is revealed every 15 seconds, but each one counts as a strike.<br>
         Solve it with the fewest strikes possible!
       </p>
-      <button id="start-btn">▶ Start</button>
+      <button id="start-btn">▶ START</button>
     </div>
   </div>
 
@@ -1093,11 +1093,8 @@ if (state.completed) {
   showVictoryModal();
 } else {
   // The intro screen is up. NOTHING runs — no timer, no focused row —
-  // until the player presses Start, so the instructions can be read
+  // until the player presses START, so the instructions can be read
   // without pressure.
-  const inProgress = hiddenIndices.some(i =>
-    state.words[i].solved || state.words[i].hintLetters > 0);
-  if (inProgress) startBtn.textContent = "▶ Continue";   // returning mid-game
   startBtn.addEventListener("click", () => {
     introOverlay.classList.add("hidden");
     focusFirstUnsolved();
