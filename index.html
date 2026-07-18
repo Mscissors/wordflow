@@ -277,6 +277,8 @@
     font-size: 0.85rem;
     text-align: center;
     padding: 0 16px;
+    max-width: 480px;
+    margin-bottom: 4px;   /* breathing room above the board */
   }
 
   button {
@@ -441,16 +443,17 @@
 
   <div class="puzzle-meta" id="puzzle-meta"><!-- "Puzzle #N — date" injected by JS --></div>
 
+  <p class="instructions">
+    <strong>Connect the words, beat the clock.</strong><br>
+    Each word makes a common phrase with the one above it (GAME → SHOW → HORSE).<br>
+    A new letter is revealed every 15 seconds, but each one counts as a strike.<br>
+    Solve it with the fewest strikes possible!
+  </p>
+
   <!-- The word chain is rendered here by JS -->
   <main id="board"></main>
 
   <div id="controls">
-    <p class="instructions">
-      <strong>Connect the words, beat the clock.</strong><br>
-      Each word makes a common phrase with the one above it (GAME → SHOW → HORSE).<br>
-      A new letter is revealed every 15 seconds, but each one counts as a strike.<br>
-      Solve it with the fewest strikes possible!
-    </p>
     <button id="submit-btn">Submit Guess</button>
     <button id="hint-btn">💡 Next Letter</button>
   </div>
