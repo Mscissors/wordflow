@@ -369,19 +369,68 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 20px;
+    gap: 16px;
     padding: 24px;
     max-width: 440px;
     text-align: center;
   }
   #intro-card .instructions { font-size: 0.95rem; line-height: 1.55; }
+  /* Headline pops in full-brightness white, unlike the dim body text */
+  #intro-card .instructions strong {
+    color: var(--text);
+    font-size: 1.06em;
+    letter-spacing: 0.5px;
+  }
 
+  .intro-icon { width: 64px; height: 64px; border-radius: 14px; }
+
+  .intro-meta {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    margin-top: -8px;
+  }
+
+  /* ----- Mini demo board (teaches the tile states visually) ----- */
+  .demo-chain {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .demo-link { color: var(--tile-border); font-size: 0.6rem; line-height: 1; }
+  .demo-row {
+    display: flex;
+    gap: 4px;
+    animation: flipIn 0.45s ease both;   /* rows flip in one after another */
+  }
+  .demo-chain .demo-row:nth-child(1) { animation-delay: 0.2s; }
+  .demo-chain .demo-row:nth-child(3) { animation-delay: 0.55s; }
+  .demo-chain .demo-row:nth-child(5) { animation-delay: 0.9s; }
+  .demo-tile {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+  .demo-tile.g { background: var(--green); color: #fff; }
+  .demo-tile.h { background: var(--gold); color: #1a1a1a; }
+  .demo-tile.e { background: var(--tile-empty); border: 2px solid var(--tile-border); }
+
+  /* Soft breathing glow makes START feel pressable */
+  @keyframes startPulse {
+    0%, 100% { box-shadow: 0 4px 16px rgba(91, 140, 255, 0.35); transform: scale(1); }
+    50%      { box-shadow: 0 6px 30px rgba(124, 91, 255, 0.6);  transform: scale(1.04); }
+  }
   #start-btn {
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
     color: #fff;
     font-size: 1.15rem;
     padding: 14px 52px;
-    box-shadow: 0 4px 16px rgba(91, 140, 255, 0.35);
+    animation: startPulse 2.4s ease-in-out infinite;
   }
 
   /* ---------- Victory Modal ---------- */
@@ -497,12 +546,30 @@
        player presses Start. -->
   <div id="intro-overlay">
     <div id="intro-card">
+      <img src="apple-touch-icon.png" alt="" class="intro-icon">
       <h1 class="logo">WordFlow</h1>
+      <div class="intro-meta" id="intro-meta"><!-- "Puzzle #N · date" via JS --></div>
       <p class="instructions">
         <strong>CONNECT THE WORDS, BEAT THE CLOCK.</strong>
         <br><br>
-        Each word makes a common phrase with the one above it (GAME → SHOW → HORSE).
-        <br><br>
+        Each word makes a common phrase with the one above it:
+      </p>
+      <!-- Mini demo board: a solved word, a half-revealed word, and a
+           hidden word — shows the game state language at a glance -->
+      <div class="demo-chain" aria-hidden="true">
+        <div class="demo-row">
+          <span class="demo-tile g">G</span><span class="demo-tile g">A</span><span class="demo-tile g">M</span><span class="demo-tile g">E</span>
+        </div>
+        <div class="demo-link">⛓</div>
+        <div class="demo-row">
+          <span class="demo-tile h">S</span><span class="demo-tile h">H</span><span class="demo-tile e"></span><span class="demo-tile e"></span>
+        </div>
+        <div class="demo-link">⛓</div>
+        <div class="demo-row">
+          <span class="demo-tile e"></span><span class="demo-tile e"></span><span class="demo-tile e"></span><span class="demo-tile e"></span><span class="demo-tile e"></span>
+        </div>
+      </div>
+      <p class="instructions">
         A new letter is revealed every 15 seconds, but each one counts as a strike.<br>
         Solve it with the fewest strikes possible!
       </p>
@@ -1085,6 +1152,14 @@ updateHintCounter();
 
 const introOverlay = document.getElementById("intro-overlay");
 const startBtn = document.getElementById("start-btn");
+
+// "Puzzle #1 · July 18, 2026" — the date key is parsed as UTC and
+// formatted as UTC so the displayed date matches the Eastern-time
+// puzzle date in every player timezone.
+document.getElementById("intro-meta").textContent =
+  `Puzzle #${puzzle.number} · ` + new Intl.DateTimeFormat("en-US", {
+    month: "long", day: "numeric", year: "numeric", timeZone: "UTC"
+  }).format(new Date(todayKey));
 
 if (state.completed) {
   // Returning winner: skip the intro, lock controls, re-show the result.
