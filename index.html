@@ -352,6 +352,38 @@
   }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+  /* ---------- Intro screen ---------- */
+  #intro-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);       /* fully opaque: covers the board */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 90;
+    transition: opacity 0.4s ease;   /* smooth fade into the game */
+  }
+  #intro-overlay.hidden { opacity: 0; pointer-events: none; }
+
+  #intro-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding: 24px;
+    max-width: 440px;
+    text-align: center;
+  }
+  #intro-card .instructions { font-size: 0.95rem; line-height: 1.55; }
+
+  #start-btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    font-size: 1.15rem;
+    padding: 14px 52px;
+    box-shadow: 0 4px 16px rgba(91, 140, 255, 0.35);
+  }
+
   /* ---------- Victory Modal ---------- */
   #modal-overlay {
     position: fixed;
@@ -443,13 +475,6 @@
 
   <div class="puzzle-meta" id="puzzle-meta"><!-- "Puzzle #N — date" injected by JS --></div>
 
-  <p class="instructions">
-    <strong>Connect the words, beat the clock.</strong><br>
-    Each word makes a common phrase with the one above it (GAME → SHOW → HORSE).<br>
-    A new letter is revealed every 15 seconds, but each one counts as a strike.<br>
-    Solve it with the fewest strikes possible!
-  </p>
-
   <!-- The word chain is rendered here by JS -->
   <main id="board"></main>
 
@@ -466,6 +491,23 @@
 
   <!-- Transient toast messages -->
   <div id="toast"></div>
+
+  <!-- INTRO SCREEN — shown before play begins so the instructions
+       can be read calmly; the 15-second timer only starts once the
+       player presses Start. -->
+  <div id="intro-overlay">
+    <div id="intro-card">
+      <h1 class="logo">WordFlow</h1>
+      <p class="instructions">
+        <strong>Connect the words, beat the clock.</strong><br>
+        Each word makes a common phrase with the one above it (GAME → SHOW → HORSE).
+        <br><br>
+        A new letter is revealed every 15 seconds, but each one counts as a strike.<br>
+        Solve it with the fewest strikes possible!
+      </p>
+      <button id="start-btn">▶ Start</button>
+    </div>
+  </div>
 
   <!-- VICTORY MODAL -->
   <div id="modal-overlay">
@@ -1040,14 +1082,27 @@ loadState();
 renderBoard();
 updateHintCounter();
 
+const introOverlay = document.getElementById("intro-overlay");
+const startBtn = document.getElementById("start-btn");
+
 if (state.completed) {
-  // Returning winner: lock controls, no timer, re-show the result.
+  // Returning winner: skip the intro, lock controls, re-show the result.
+  introOverlay.classList.add("hidden");
   document.getElementById("hint-btn").disabled = true;
   document.getElementById("submit-btn").disabled = true;
   showVictoryModal();
 } else {
-  focusFirstUnsolved();
-  resetTimer();   // the 15-second clock starts as soon as play begins
+  // The intro screen is up. NOTHING runs — no timer, no focused row —
+  // until the player presses Start, so the instructions can be read
+  // without pressure.
+  const inProgress = hiddenIndices.some(i =>
+    state.words[i].solved || state.words[i].hintLetters > 0);
+  if (inProgress) startBtn.textContent = "▶ Continue";   // returning mid-game
+  startBtn.addEventListener("click", () => {
+    introOverlay.classList.add("hidden");
+    focusFirstUnsolved();
+    resetTimer();   // the 15-second clock starts NOW
+  });
 }
 </script>
 </body>
