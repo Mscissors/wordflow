@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>WordFlow — Daily Word Chain Puzzle</title>
+<style>
+  /* ============================================================
+     WORDFLOW — STYLES
+     Mobile-first, clean & modern. CSS custom properties make
+     theming trivial; transitions handle all reveal animations.
+     ============================================================ */
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface-2: #232736;
+    --tile-empty: #2a2f40;
+    --tile-border: #3a4056;
+    --tile-focus: #4a5578;
+    --text: #eef0f6;
+    --text-dim: #8b91a7;
+    --accent: #5b8cff;
+    --accent-2: #7c5bff;
+    --green: #35c47c;
+    --green-dark: #2a9d63;
+    --red: #ff4757;
+    --gold: #ffd166;
+    --radius: 12px;
+    --tile-size: clamp(38px, 9vw, 52px);
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100dvh;
+    padding: 12px;
+    overflow-x: hidden;
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 10px 0 4px;
+    border-bottom: 1px solid var(--surface-2);
+    margin-bottom: 6px;
+  }
+
+  .logo {
+    font-size: clamp(1.5rem, 6vw, 2rem);
+    font-weight: 800;
+    letter-spacing: 1px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .puzzle-meta {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    margin-bottom: 10px;
+  }
+
+  /* ---------- RED HINT COUNTER (fixed corner badge) ---------- */
+  #hint-counter {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 50;
+    background: var(--red);
+    color: #fff;
+    font-weight: 800;
+    font-size: 1.05rem;
+    min-width: 46px;
+    height: 46px;
+    padding: 0 10px;
+    border-radius: 23px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    box-shadow: 0 4px 14px rgba(255, 71, 87, 0.45);
+    transition: transform 0.18s ease;
+  }
+  /* Quick "pop" animation each time the counter increments */
+  #hint-counter.pop { transform: scale(1.25); }
+  #hint-counter .bulb { font-size: 0.9rem; }
+
+  /* ---------- COUNTDOWN TIMER ----------
+     Counts down from 15. When it hits 0 a letter is force-revealed,
+     the red counter goes up, and the timer restarts.
+     The badge is docked (via JS) inside the focused word row and
+     absolutely positioned just to its LEFT, so it always sits next
+     to the word currently being guessed.
+     Vertical centering uses top:calc(50% - height/2) instead of a
+     translateY transform so the .low pulse animation (which also
+     animates transform) can't knock it off-center. */
+  #timer {
+    position: absolute;
+    right: calc(100% + 6px);
+    top: calc(50% - 16px);
+    height: 32px;
+    min-width: 54px;
+    padding: 0 9px;
+    border-radius: 16px;
+    background: var(--surface-2);
+    color: var(--text);
+    font-weight: 800;
+    font-size: 0.85rem;
+    display: none;             /* shown once docked to a row */
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 1px solid var(--tile-border);
+    transition: background 0.3s ease, color 0.3s ease;
+    pointer-events: none;      /* never blocks taps on the row */
+  }
+  /* Last 5 seconds: turn red and pulse to warn the player */
+  @keyframes timerPulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.12); }
+  }
+  #timer.low {
+    background: var(--red);
+    border-color: var(--red);
+    color: #fff;
+    animation: timerPulse 1s ease infinite;
+  }
+
+  /* ---------- Game board / chain ---------- */
+  #board {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0 16px;
+    width: 100%;
+    max-width: 480px;
+  }
+
+  /* Small connector between rows hinting at the "chain" */
+  .chain-link {
+    color: var(--tile-border);
+    font-size: 0.7rem;
+    line-height: 1;
+    user-select: none;
+  }
+
+  .word-row {
+    position: relative;   /* anchor for the docked countdown timer */
+    display: flex;
+    gap: 5px;
+    padding: 5px;
+    border-radius: var(--radius);
+    cursor: default;
+    transition: background 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  /* Hidden (unsolved) rows are clickable */
+  .word-row.hidden-word { cursor: pointer; }
+
+  .word-row.focused {
+    background: var(--surface);
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+
+  /* Shake animation for wrong guesses */
+  @keyframes shake {
+    10%, 90% { transform: translateX(-2px); }
+    20%, 80% { transform: translateX(4px); }
+    30%, 50%, 70% { transform: translateX(-6px); }
+    40%, 60% { transform: translateX(6px); }
+  }
+  .word-row.shake { animation: shake 0.5s ease; }
+
+  /* ---------- Tiles ---------- */
+  .tile {
+    width: var(--tile-size);
+    height: var(--tile-size);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(var(--tile-size) * 0.5);
+    font-weight: 700;
+    text-transform: uppercase;
+    border-radius: 8px;
+    background: var(--tile-empty);
+    border: 2px solid var(--tile-border);
+    color: var(--text);
+    /* Smooth transition used when letters are revealed */
+    transition: background 0.35s ease, border-color 0.35s ease,
+                color 0.35s ease, transform 0.35s ease;
+  }
+
+  /* Anchor word (top of the chain) — always revealed, styled distinctly */
+  .tile.anchor {
+    background: var(--surface-2);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* A letter revealed by the hint button */
+  .tile.hinted {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #1a1a1a;
+  }
+
+  /* Letters the player has typed but not yet submitted */
+  .tile.typed {
+    border-color: var(--tile-focus);
+    color: var(--text);
+  }
+
+  /* Solved word — green flip-style reveal */
+  .tile.solved {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+  }
+  @keyframes flipIn {
+    0%   { transform: rotateX(90deg); }
+    100% { transform: rotateX(0deg); }
+  }
+  .tile.flip { animation: flipIn 0.4s ease both; }
+
+  /* ---------- Controls ---------- */
+  #controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 480px;
+    padding-bottom: 24px;
+  }
+
+  .instructions {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 0 16px;
+  }
+
+  button {
+    font-family: inherit;
+    border: none;
+    cursor: pointer;
+    border-radius: var(--radius);
+    font-weight: 700;
+    transition: transform 0.12s ease, filter 0.2s ease, opacity 0.2s;
+  }
+  button:active { transform: scale(0.96); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Prominent hint button */
+  #hint-btn {
+    background: linear-gradient(135deg, var(--gold), #ffb347);
+    color: #1a1a1a;
+    font-size: 1.05rem;
+    padding: 14px 34px;
+    box-shadow: 0 4px 16px rgba(255, 209, 102, 0.35);
+  }
+
+  #submit-btn {
+    background: var(--accent);
+    color: #fff;
+    font-size: 1rem;
+    padding: 12px 30px;
+  }
+
+  /* Hidden input: captures typing & summons the mobile keyboard.
+     It is visually invisible but focusable. */
+  #ghost-input {
+    position: fixed;
+    top: -100px;
+    left: 0;
+    width: 10px;
+    height: 10px;
+    opacity: 0.01;
+    border: none;
+    background: transparent;
+    color: transparent;
+    caret-color: transparent;
+  }
+
+  /* Toast for transient messages ("Copied!", "Not quite!") */
+  #toast {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface-2);
+    color: var(--text);
+    padding: 10px 22px;
+    border-radius: 24px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    z-index: 200;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- Victory Modal ---------- */
+  #modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 10, 15, 0.75);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;   /* smooth fade-in for the modal */
+  }
+  #modal-overlay.visible { opacity: 1; pointer-events: auto; }
+
+  #victory-modal {
+    background: var(--surface);
+    border: 1px solid var(--surface-2);
+    border-radius: 20px;
+    padding: 32px 28px;
+    width: min(92vw, 380px);
+    text-align: center;
+    transform: translateY(30px) scale(0.95);
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  }
+  #modal-overlay.visible #victory-modal {
+    transform: translateY(0) scale(1);
+  }
+
+  #victory-modal h2 {
+    font-size: 1.8rem;
+    margin-bottom: 6px;
+    background: linear-gradient(90deg, var(--green), var(--accent));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  #victory-modal p { color: var(--text-dim); margin-bottom: 8px; }
+
+  .final-hints {
+    font-size: 2.6rem;
+    font-weight: 800;
+    color: var(--red);
+    margin: 10px 0 4px;
+  }
+  .final-hints-label {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 18px;
+  }
+
+  #share-btn {
+    background: var(--green);
+    color: #fff;
+    font-size: 1.05rem;
+    padding: 14px 36px;
+    width: 100%;
+  }
+
+  #close-modal {
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    margin-top: 12px;
+    padding: 8px;
+  }
+</style>
+</head>
+<body>
+
+  <!-- RED HINT COUNTER — always visible, fixed top-right corner -->
+  <div id="hint-counter" aria-live="polite">
+    <span class="bulb">💡</span><span id="hint-count-num">0</span>
+  </div>
+
+  <!-- COUNTDOWN TIMER — docked by JS beside the focused word row -->
+  <div id="timer" aria-live="polite">
+    <span>⏱</span><span id="timer-num">15</span>
+  </div>
+
+  <header>
+    <h1 class="logo">WordFlow</h1>
+  </header>
+
+  <div class="puzzle-meta" id="puzzle-meta"><!-- "Puzzle #N — date" injected by JS --></div>
+
+  <!-- The word chain is rendered here by JS -->
+  <main id="board"></main>
+
+  <div id="controls">
+    <p class="instructions">
+      Each word pairs with the one above it.<br>
+      Tap the next row, type your guess, then press Enter.<br>
+      ⏱ Every 15 seconds a letter is revealed and costs you a hint!
+    </p>
+    <button id="submit-btn">Submit Guess</button>
+    <button id="hint-btn">💡 Next Letter</button>
+  </div>
+
+  <!-- Invisible input: gives us keyboard events on mobile & desktop alike -->
+  <input id="ghost-input" type="text" autocomplete="off" autocorrect="off"
+         autocapitalize="characters" spellcheck="false" aria-hidden="true">
+
+  <!-- Transient toast messages -->
+  <div id="toast"></div>
+
+  <!-- VICTORY MODAL -->
+  <div id="modal-overlay">
+    <div id="victory-modal" role="dialog" aria-modal="true">
+      <h2>🎉 Chain Complete!</h2>
+      <p>You solved today's WordFlow.</p>
+      <div class="final-hints" id="final-hints">0</div>
+      <div class="final-hints-label">Hints Used 🔴</div>
+      <button id="share-btn">📋 Share Result</button>
+      <button id="close-modal">Close</button>
+    </div>
+  </div>
+
+<script>
+"use strict";
+
+/* ==============================================================
+   1. DAILY PUZZLE DATA
+   --------------------------------------------------------------
+   PUZZLES is an ORDERED ROTATION of word chains. Starting at
+   LAUNCH_DATE, the game serves one chain per day — a new puzzle
+   appears every night at MIDNIGHT US EASTERN TIME (see §2 for how
+   that is computed). When the list runs out it cycles back to the
+   start, so the game never breaks; just append more chains to
+   extend the rotation.
+
+   Every chain has 8 words: the FIRST word is the only revealed
+   anchor; the remaining 7 are hidden and must be guessed in turn.
+   Each word is a standalone dictionary word of 6 letters or fewer,
+   and each adjacent pair forms a common two-word phrase.
+   ============================================================== */
+const LAUNCH_DATE = "2026-07-18";   // day 1 of the rotation (Eastern date)
+
+const PUZZLES = [
+  ["MOVIE", "NIGHT", "SHIFT", "KEY", "LIME", "GREEN", "CARD", "TRICK"],
+  // movie night, night shift, shift key, key lime, lime green, green card, card trick
+  ["SECRET", "AGENT", "ORANGE", "JUICE", "BOX", "OFFICE", "SPACE", "BAR"],
+  // secret agent, agent orange, orange juice, juice box, box office, office space, space bar
+  ["FIRST", "CLASS", "ACTION", "FIGURE", "EIGHT", "BALL", "GAME", "PLAN"],
+  // first class, class action, action figure, figure eight, eight ball, ball game, game plan
+  ["PUNK", "ROCK", "STAR", "POWER", "PLANT", "FOOD", "TRUCK", "STOP"],
+  // punk rock, rock star, star power, power plant, plant food, food truck, truck stop
+  ["FRENCH", "PRESS", "BOX", "SET", "POINT", "GUARD", "DOG", "PARK"],
+  // french press, press box, box set, set point, point guard, guard dog, dog park
+  ["DRY", "ICE", "COLD", "WAR", "GAME", "SHOW", "HORSE", "RACE"],
+  // dry ice, ice cold, cold war, war game, game show, show horse, horse race
+  ["COMIC", "BOOK", "CLUB", "SODA", "WATER", "PARK", "BENCH", "PRESS"],
+  // comic book, book club, club soda, soda water, water park, park bench, bench press
+  ["WILD", "CARD", "SHARK", "TANK", "TOP", "HAT", "TRICK", "SHOT"],
+  // wild card, card shark, shark tank, tank top, top hat, hat trick, trick shot
+  ["GHOST", "TOWN", "HALL", "PASS", "RUSH", "HOUR", "HAND", "SOAP"],
+  // ghost town, town hall, hall pass, pass rush, rush hour, hour hand, hand soap
+  ["HEAVY", "METAL", "BAND", "AID", "WORKER", "BEE", "STING", "RAY"],
+  // heavy metal, metal band, band aid, aid worker, worker bee, bee sting, sting ray
+  ["LUCKY", "BREAK", "DANCE", "PARTY", "FOUL", "PLAY", "DATE", "NIGHT"],
+  // lucky break, break dance, dance party, party foul, foul play, play date, date night
+  ["ICE", "CREAM", "SODA", "POP", "QUIZ", "SHOW", "BOAT", "RACE"],
+  // ice cream, cream soda, soda pop, pop quiz, quiz show, show boat, boat race
+  ["EASY", "STREET", "SMART", "PHONE", "CALL", "CENTER", "STAGE", "FRIGHT"],
+  // easy street, street smart, smart phone, phone call, call center, center stage, stage fright
+  ["PILLOW", "TALK", "RADIO", "WAVE", "POOL", "PARTY", "BUS", "STOP"],
+  // pillow talk, talk radio, radio wave, wave pool, pool party, party bus, bus stop
+  ["BUCKET", "LIST", "PRICE", "TAG", "TEAM", "SPIRIT", "ANIMAL", "FARM"],
+  // bucket list, list price, price tag, tag team, team spirit, spirit animal, animal farm
+  ["DRAGON", "FRUIT", "SALAD", "BAR", "CODE", "NAME", "TAG", "SALE"],
+  // dragon fruit, fruit salad, salad bar, bar code, code name, name tag, tag sale
+  ["THINK", "TANK", "TOP", "DOG", "BONE", "DRY", "CLEAN", "SLATE"],
+  // think tank, tank top, top dog, dog bone, bone dry, dry clean, clean slate
+  ["MASTER", "KEY", "WEST", "COAST", "GUARD", "DUTY", "FREE", "FALL"],
+  // master key, key west, west coast, coast guard, guard duty, duty free, free fall
+  ["LASER", "TAG", "TEAM", "PLAYER", "PIANO", "BAR", "SOAP", "OPERA"],
+  // laser tag, tag team, team player, player piano, piano bar, bar soap, soap opera
+  ["SPRING", "ROLL", "CALL", "CENTER", "COURT", "CASE", "STUDY", "HALL"],
+  // spring roll, roll call, call center, center court, court case, case study, study hall
+  ["STONE", "COLD", "FRONT", "DESK", "JOB", "FAIR", "GAME", "OVER"]
+  // stone cold, cold front, front desk, desk job, job fair, fair game, game over
+];
+
+/* The URL appended to the share text. Point at your real domain. */
+const GAME_URL = "https://wordflow.game";
+
+/* ==============================================================
+   2. DATE-PARSING & PUZZLE-SELECTION LOGIC
+   --------------------------------------------------------------
+   The daily rollover is pinned to MIDNIGHT US EASTERN TIME, so the
+   entire world flips to the new puzzle at the same instant (e.g. a
+   player in Tokyo gets the new puzzle at 1 PM their time). This
+   differs from Wordle's per-timezone midnight — here there is ONE
+   global clock. How it works:
+
+   a) Intl.DateTimeFormat with timeZone "America/New_York" asks the
+      browser "what calendar date is it in New York right now?".
+      The browser's built-in tz database handles EST vs EDT
+      (daylight saving) automatically — no manual UTC-offset math,
+      which would drift twice a year. The "en-CA" locale is chosen
+      purely because it formats dates as "YYYY-MM-DD".
+
+   b) The number of whole days between LAUNCH_DATE and that Eastern
+      date key picks both the puzzle number (offset + 1) and the
+      chain (offset modulo list length). Both keys are parsed as
+      UTC midnights so the subtraction is an exact multiple of
+      24 hours — no DST edge cases in the arithmetic.
+   ============================================================== */
+
+/** Returns today's date key IN US EASTERN TIME, e.g. "2026-07-18". */
+function getEasternDateKey(d = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric", month: "2-digit", day: "2-digit"
+  }).format(d);
+}
+
+/** Whole days between two "YYYY-MM-DD" keys (exact — both parse as
+    UTC midnight, so the difference is always a multiple of 24h). */
+function daysBetween(fromKey, toKey) {
+  return Math.round((Date.parse(toKey) - Date.parse(fromKey)) / 86400000);
+}
+
+/** Selects today's puzzle (globally synchronized via Eastern time). */
+function getTodaysPuzzle() {
+  // Clamp at 0 so a device with a badly skewed clock (pre-launch
+  // date) still gets puzzle #1 instead of a negative index.
+  const offset = Math.max(0, daysBetween(LAUNCH_DATE, getEasternDateKey()));
+  return {
+    number: offset + 1,
+    chain: PUZZLES[offset % PUZZLES.length]
+  };
+}
+
+/* ==============================================================
+   3. GAME STATE & LOCAL-STORAGE PERSISTENCE
+   --------------------------------------------------------------
+   State is saved under a key namespaced by the puzzle date, so a
+   refresh restores today's progress, while yesterday's stale
+   state is simply ignored (and cleaned up) when a new day begins.
+   ============================================================== */
+const puzzle = getTodaysPuzzle();
+const todayKey = getEasternDateKey();   // state is keyed by the Eastern date
+const STORAGE_KEY = "wordflow-state";
+
+/* state.words[i] tracks each HIDDEN word (index into puzzle.chain):
+     solved      — player has correctly guessed it
+     hintLetters — how many leading letters were revealed via hints */
+let state = {
+  date: todayKey,
+  sig: puzzle.chain.join("-"),  // identifies WHICH chain this state belongs to
+  hints: 0,
+  words: {},        // { chainIndex: { solved, hintLetters } }
+  completed: false
+};
+
+/* Indices of the hidden words — everything except the first word,
+   which is the puzzle's only revealed anchor. */
+const hiddenIndices = puzzle.chain.map((_, i) => i)
+  .filter(i => i > 0);
+
+hiddenIndices.forEach(i => { state.words[i] = { solved: false, hintLetters: 0 }; });
+
+/** Load saved progress — but ONLY if it belongs to today's date. */
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    // Stale state from a previous day — or from a different chain
+    // (e.g. the puzzle list was updated)? Discard it: fresh start.
+    if (saved.date !== todayKey || saved.sig !== state.sig) {
+      localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+    // Merge defensively in case the chain shape changed.
+    state.hints = saved.hints || 0;
+    state.completed = !!saved.completed;
+    hiddenIndices.forEach(i => {
+      if (saved.words && saved.words[i]) {
+        state.words[i].solved = !!saved.words[i].solved;
+        state.words[i].hintLetters = saved.words[i].hintLetters || 0;
+      }
+    });
+  } catch (e) { /* Corrupt storage — start fresh. */ }
+}
+
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  catch (e) { /* Storage unavailable (private mode etc.) — play on. */ }
+}
+
+/* ==============================================================
+   4. RENDERING
+   ============================================================== */
+const boardEl = document.getElementById("board");
+const ghostInput = document.getElementById("ghost-input");
+const hintCountNum = document.getElementById("hint-count-num");
+const toastEl = document.getElementById("toast");
+
+let focusedIndex = null;   // chain index of the row being guessed
+let currentTyped = "";     // letters typed for the focused row
+
+document.getElementById("puzzle-meta").textContent =
+  `Puzzle #${puzzle.number} — ${todayKey}`;
+
+/** Builds the whole board once; tiles are updated in place after. */
+function renderBoard() {
+  boardEl.innerHTML = "";
+  puzzle.chain.forEach((word, i) => {
+    // Connector glyph between rows to suggest the chain linkage.
+    if (i > 0) {
+      const link = document.createElement("div");
+      link.className = "chain-link";
+      link.textContent = "⛓";
+      boardEl.appendChild(link);
+    }
+
+    const row = document.createElement("div");
+    row.className = "word-row";
+    row.dataset.index = i;
+
+    const isAnchor = i === 0;   // only the top word is revealed
+    if (!isAnchor) row.classList.add("hidden-word");
+
+    for (let l = 0; l < word.length; l++) {
+      const tile = document.createElement("div");
+      tile.className = "tile";
+      tile.dataset.pos = l;
+      if (isAnchor) {
+        tile.classList.add("anchor");
+        tile.textContent = word[l];
+      }
+      row.appendChild(tile);
+    }
+
+    if (!isAnchor) row.addEventListener("click", () => focusRow(i));
+    boardEl.appendChild(row);
+  });
+  refreshAllRows();
+}
+
+/** Re-paints one hidden row from state (hints, typing, solved). */
+function refreshRow(i) {
+  const row = boardEl.querySelector(`.word-row[data-index="${i}"]`);
+  if (!row) return;
+  const word = puzzle.chain[i];
+  const ws = state.words[i];
+  const tiles = row.querySelectorAll(".tile");
+
+  tiles.forEach((tile, pos) => {
+    tile.classList.remove("hinted", "typed", "solved");
+    tile.textContent = "";
+
+    if (ws.solved) {
+      // Whole word revealed in green.
+      tile.classList.add("solved");
+      tile.textContent = word[pos];
+    } else if (pos < ws.hintLetters) {
+      // Leading letters unlocked by the hint button (gold).
+      tile.classList.add("hinted");
+      tile.textContent = word[pos];
+    } else if (i === focusedIndex) {
+      // Player's in-progress typing fills the remaining tiles.
+      const typedPos = pos - ws.hintLetters;
+      if (typedPos < currentTyped.length) {
+        tile.classList.add("typed");
+        tile.textContent = currentTyped[typedPos];
+      }
+    }
+  });
+
+  row.classList.toggle("focused", i === focusedIndex && !ws.solved);
+}
+
+function refreshAllRows() { hiddenIndices.forEach(refreshRow); }
+
+/* ==============================================================
+   5. INPUT HANDLING (row focus + typing)
+   ============================================================== */
+function focusRow(i) {
+  if (state.words[i].solved || state.completed) return;
+  focusedIndex = i;
+  currentTyped = "";
+  ghostInput.value = "";
+  ghostInput.focus();          // summons the keyboard on mobile
+  refreshAllRows();
+  positionTimer();             // countdown badge follows the focus
+}
+
+/** Auto-focus the first unsolved hidden word (nice QoL touch). */
+function focusFirstUnsolved() {
+  const next = hiddenIndices.find(i => !state.words[i].solved);
+  if (next !== undefined) focusRow(next);
+  else { focusedIndex = null; positionTimer(); }
+}
+
+/* Physical-keyboard support (desktop). */
+document.addEventListener("keydown", (e) => {
+  if (state.completed || focusedIndex === null) return;
+  if (e.key === "Enter") { submitGuess(); return; }
+  if (e.key === "Backspace") {
+    currentTyped = currentTyped.slice(0, -1);
+    refreshRow(focusedIndex);
+    return;
+  }
+  if (/^[a-zA-Z]$/.test(e.key)) typeLetter(e.key);
+});
+
+/* Mobile keyboards fire input events on the ghost field instead. */
+ghostInput.addEventListener("input", () => {
+  if (state.completed || focusedIndex === null) return;
+  const ws = state.words[focusedIndex];
+  const maxLen = puzzle.chain[focusedIndex].length - ws.hintLetters;
+  currentTyped = ghostInput.value.replace(/[^a-zA-Z]/g, "")
+                                 .toUpperCase().slice(0, maxLen);
+  refreshRow(focusedIndex);
+});
+
+function typeLetter(ch) {
+  const ws = state.words[focusedIndex];
+  const maxLen = puzzle.chain[focusedIndex].length - ws.hintLetters;
+  if (currentTyped.length >= maxLen) return;
+  currentTyped += ch.toUpperCase();
+  refreshRow(focusedIndex);
+}
+
+/* ==============================================================
+   6. GUESS SUBMISSION & WIN-STATE EVALUATION
+   --------------------------------------------------------------
+   A guess is assembled as: [hint-revealed prefix] + [typed rest].
+   It is compared case-insensitively against the answer. After any
+   word is solved, checkWin() scans EVERY hidden word: the puzzle
+   is complete if — and only if — all of them are solved. This is
+   the single source of truth for the win state, so it is also
+   called on page load (a returning winner sees the modal again).
+   ============================================================== */
+function submitGuess() {
+  if (focusedIndex === null || state.completed) return;
+  const i = focusedIndex;
+  const ws = state.words[i];
+  const answer = puzzle.chain[i];
+  const guess = answer.slice(0, ws.hintLetters) + currentTyped;
+
+  if (guess.length !== answer.length) {
+    showToast("Fill in every letter first");
+    return;
+  }
+
+  if (guess.toUpperCase() === answer.toUpperCase()) {
+    solveWord(i);
+  } else {
+    // Wrong: shake the row and clear the attempt.
+    const row = boardEl.querySelector(`.word-row[data-index="${i}"]`);
+    row.classList.add("shake");
+    setTimeout(() => row.classList.remove("shake"), 500);
+    currentTyped = "";
+    ghostInput.value = "";
+    refreshRow(i);
+  }
+}
+
+function solveWord(i, animate = true) {
+  state.words[i].solved = true;
+  currentTyped = "";
+  ghostInput.value = "";
+  saveState();
+  refreshRow(i);
+  resetTimer();   // a solved word grants a fresh 15 seconds
+
+  if (animate) {
+    // Staggered flip animation across the row's tiles.
+    const tiles = boardEl.querySelectorAll(`.word-row[data-index="${i}"] .tile`);
+    tiles.forEach((t, idx) => {
+      t.style.animationDelay = `${idx * 70}ms`;
+      t.classList.add("flip");
+    });
+  }
+
+  focusFirstUnsolved();
+  checkWin();
+}
+
+/** WIN CHECK: every hidden word solved → victory. */
+function checkWin() {
+  const allSolved = hiddenIndices.every(i => state.words[i].solved);
+  if (!allSolved) return;
+
+  state.completed = true;
+  focusedIndex = null;
+  saveState();
+  refreshAllRows();
+  stopTimer();    // victory: the clock stops for good
+  document.getElementById("hint-btn").disabled = true;
+  document.getElementById("submit-btn").disabled = true;
+
+  // Small delay so the final flip animation finishes first.
+  setTimeout(showVictoryModal, 700);
+}
+
+/* ==============================================================
+   7. HINT SYSTEM + AUTO-REVEAL TIMER
+   --------------------------------------------------------------
+   revealNextLetter() reveals the next sequential letter of the
+   focused word and increments the global red counter. It is fired
+   two ways:
+     a) the player presses the "Next Letter" button, or
+     b) the 15-second countdown reaches zero (forced hint).
+   Either way the cost is identical: red counter +1. If the reveal
+   completes the word, it auto-solves (and may trigger the win).
+   ============================================================== */
+function revealNextLetter() {
+  if (state.completed) return;
+  // No row focused? Target the next unsolved word automatically.
+  if (focusedIndex === null) focusFirstUnsolved();
+  if (focusedIndex === null) return;
+
+  const i = focusedIndex;
+  const ws = state.words[i];
+  const answer = puzzle.chain[i];
+  if (ws.hintLetters >= answer.length) return;
+
+  ws.hintLetters++;
+  state.hints++;
+  // Preserve in-progress typing. The newly revealed letter occupies
+  // the tile where the player's FIRST typed letter sat, so drop just
+  // that one character — every remaining typed letter stays in the
+  // exact tile the player put it in. (If they had typed the right
+  // letter there, nothing visibly changes except it turning gold.)
+  currentTyped = currentTyped.slice(1);
+  ghostInput.value = currentTyped;   // keep mobile input in sync
+  updateHintCounter(true);
+  saveState();
+
+  // Fully revealed by hints → counts as solved.
+  if (ws.hintLetters >= answer.length) solveWord(i);
+  else refreshRow(i);
+}
+
+document.getElementById("hint-btn").addEventListener("click", revealNextLetter);
+
+/* ---------- 15-SECOND COUNTDOWN ----------
+   Ticks once per second. At zero: force-reveal a letter (which
+   bumps the red counter) and restart the countdown. Solving a
+   word correctly also resets it (see solveWord). The timer is
+   intentionally NOT persisted — a page refresh grants a fresh
+   15 seconds rather than punishing the reload. */
+const TIMER_SECONDS = 15;
+let timeLeft = TIMER_SECONDS;
+let timerInterval = null;
+const timerNum = document.getElementById("timer-num");
+const timerEl = document.getElementById("timer");
+
+function renderTimer() {
+  timerNum.textContent = timeLeft;
+  // Warning style for the final 5 seconds.
+  timerEl.classList.toggle("low", timeLeft <= 5);
+}
+
+/** Docks the countdown badge inside the focused row, so it renders
+    directly to the LEFT of the word being guessed. Hidden when no
+    row is focused (e.g. after victory). */
+function positionTimer() {
+  if (state.completed || focusedIndex === null) {
+    timerEl.style.display = "none";
+    return;
+  }
+  const row = boardEl.querySelector(`.word-row[data-index="${focusedIndex}"]`);
+  if (row) {
+    row.appendChild(timerEl);      // reparent: absolute pos is row-relative
+    timerEl.style.display = "flex";
+  }
+}
+
+/** (Re)starts the countdown from a full 15 seconds. */
+function resetTimer() {
+  clearInterval(timerInterval);
+  timeLeft = TIMER_SECONDS;
+  renderTimer();
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    if (timeLeft <= 0) {
+      // Time's up: forced letter reveal, red counter +1, restart.
+      // (revealNextLetter may solve the word → solveWord calls
+      // resetTimer itself, replacing this interval — so only
+      // restart here if that didn't happen.)
+      const before = timeLeft;
+      revealNextLetter();
+      if (timeLeft === before) {  // interval not already replaced
+        timeLeft = TIMER_SECONDS;
+      }
+    }
+    renderTimer();
+  }, 1000);
+}
+
+/** Stops the countdown entirely (on victory). */
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+}
+
+/** Updates the red corner badge; `pop` animates the bump. */
+function updateHintCounter(pop = false) {
+  hintCountNum.textContent = state.hints;
+  if (pop) {
+    const badge = document.getElementById("hint-counter");
+    badge.classList.add("pop");
+    setTimeout(() => badge.classList.remove("pop"), 180);
+  }
+}
+
+document.getElementById("submit-btn").addEventListener("click", submitGuess);
+
+/* ==============================================================
+   8. VICTORY MODAL & SHARE
+   ============================================================== */
+const overlay = document.getElementById("modal-overlay");
+
+function showVictoryModal() {
+  document.getElementById("final-hints").textContent = state.hints;
+  overlay.classList.add("visible");
+}
+
+document.getElementById("close-modal").addEventListener("click", () => {
+  overlay.classList.remove("visible");
+});
+
+document.getElementById("share-btn").addEventListener("click", async () => {
+  // Exact required share format.
+  const text = `WordFlow #${puzzle.number} | Hints Used: ${state.hints} 🔴 | ` +
+               `Can you beat my score?\n${GAME_URL}`;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Copied to clipboard! 📋");
+  } catch (e) {
+    // Fallback for older browsers / non-secure contexts.
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); showToast("Copied to clipboard! 📋"); }
+    catch (err) { showToast("Copy failed — please copy manually"); }
+    document.body.removeChild(ta);
+  }
+});
+
+/* ---------- Toast helper ---------- */
+let toastTimer = null;
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1800);
+}
+
+/* ==============================================================
+   9. BOOT
+   ============================================================== */
+loadState();
+renderBoard();
+updateHintCounter();
+
+if (state.completed) {
+  // Returning winner: lock controls, no timer, re-show the result.
+  document.getElementById("hint-btn").disabled = true;
+  document.getElementById("submit-btn").disabled = true;
+  showVictoryModal();
+} else {
+  focusFirstUnsolved();
+  resetTimer();   // the 15-second clock starts as soon as play begins
+}
+</script>
+</body>
+</html>
