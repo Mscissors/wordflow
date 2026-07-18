@@ -287,6 +287,16 @@
     padding: 12px 30px;
   }
 
+  /* ---------- Footer tagline ---------- */
+  #tagline {
+    margin-top: auto;          /* pins to the bottom of the page */
+    padding: 14px 0 10px;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+    text-align: center;
+  }
+
   /* Hidden input: captures typing & summons the mobile keyboard.
      It is visually invisible but focusable. */
   #ghost-input {
@@ -424,6 +434,8 @@
     <button id="submit-btn">Submit Guess</button>
     <button id="hint-btn">💡 Next Letter</button>
   </div>
+
+  <footer id="tagline">A new puzzle every day ✨</footer>
 
   <!-- Invisible input: gives us keyboard events on mobile & desktop alike -->
   <input id="ghost-input" type="text" autocomplete="off" autocorrect="off"
