@@ -301,13 +301,6 @@
     box-shadow: 0 4px 16px rgba(255, 209, 102, 0.35);
   }
 
-  #submit-btn {
-    background: var(--accent);
-    color: #fff;
-    font-size: 1rem;
-    padding: 12px 30px;
-  }
-
   /* ---------- Footer tagline ---------- */
   #tagline {
     margin-top: auto;          /* pins to the bottom of the page */
@@ -536,7 +529,6 @@
   <main id="board"></main>
 
   <div id="controls">
-    <button id="submit-btn">Submit Guess</button>
     <button id="hint-btn">💡 Next Letter</button>
   </div>
 
@@ -883,7 +875,6 @@ function focusFirstUnsolved() {
 /* Physical-keyboard support (desktop). */
 document.addEventListener("keydown", (e) => {
   if (state.completed || focusedIndex === null) return;
-  if (e.key === "Enter") { submitGuess(); return; }
   if (e.key === "Backspace") {
     currentTyped = currentTyped.slice(0, -1);
     refreshRow(focusedIndex);
@@ -900,6 +891,7 @@ ghostInput.addEventListener("input", () => {
   currentTyped = ghostInput.value.replace(/[^a-zA-Z]/g, "")
                                  .toUpperCase().slice(0, maxLen);
   refreshRow(focusedIndex);
+  if (currentTyped.length === maxLen) submitGuess();
 });
 
 function typeLetter(ch) {
@@ -908,6 +900,7 @@ function typeLetter(ch) {
   if (currentTyped.length >= maxLen) return;
   currentTyped += ch.toUpperCase();
   refreshRow(focusedIndex);
+  if (currentTyped.length === maxLen) submitGuess();
 }
 
 /* ==============================================================
@@ -978,7 +971,6 @@ function checkWin() {
   stopTimer();    // victory: the clock stops for good
   reportResult(); // add this game to today's global stats
   document.getElementById("hint-btn").disabled = true;
-  document.getElementById("submit-btn").disabled = true;
 
   // Small delay so the final flip animation finishes first.
   setTimeout(showVictoryModal, 700);
@@ -1095,8 +1087,6 @@ function updateHintCounter(pop = false) {
     setTimeout(() => badge.classList.remove("pop"), 180);
   }
 }
-
-document.getElementById("submit-btn").addEventListener("click", submitGuess);
 
 /* ==============================================================
    7b. GLOBAL DAILY STATS (Firebase Realtime Database via REST)
@@ -1250,7 +1240,6 @@ if (state.completed) {
   introOverlay.classList.add("hidden");
   reportResult();   // backfill: wins from before stats existed still count
   document.getElementById("hint-btn").disabled = true;
-  document.getElementById("submit-btn").disabled = true;
   showVictoryModal();
 } else {
   // The intro screen is up. NOTHING runs — no timer, no focused row —
