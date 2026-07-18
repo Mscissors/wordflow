@@ -471,7 +471,7 @@
       <p>You solved today's WordFlow.</p>
       <div class="final-hints" id="final-hints">0</div>
       <div class="final-hints-label">Strikes 🔴</div>
-      <button id="share-btn">📋 Share Result</button>
+      <button id="share-btn">📤 Share Result</button>
       <button id="close-modal">Close</button>
     </div>
   </div>
@@ -988,8 +988,24 @@ document.getElementById("close-modal").addEventListener("click", () => {
 
 document.getElementById("share-btn").addEventListener("click", async () => {
   // Share format uses the "strikes" vocabulary from the instructions.
-  const text = `WordFlow #${puzzle.number} | Strikes: ${state.hints} 🔴 | ` +
-               `Can you beat me?\n${GAME_URL}`;
+  const message = `WordFlow #${puzzle.number} | Strikes: ${state.hints} 🔴 | ` +
+                  `Can you beat me?`;
+
+  // Preferred path: the Web Share API opens the phone's native share
+  // sheet (Messages, Mail, AirDrop…). Only exists on mobile browsers
+  // and only on HTTPS. The url is passed separately so messaging apps
+  // render it as a tappable link with the preview banner.
+  if (navigator.share) {
+    try {
+      await navigator.share({ text: message, url: GAME_URL });
+    } catch (e) {
+      // AbortError = user closed the share sheet — not an error.
+    }
+    return;
+  }
+
+  // Desktop fallback: copy the full text to the clipboard.
+  const text = `${message}\n${GAME_URL}`;
   try {
     await navigator.clipboard.writeText(text);
     showToast("Copied to clipboard! 📋");
