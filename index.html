@@ -406,9 +406,9 @@
 </head>
 <body>
 
-  <!-- RED HINT COUNTER — always visible, fixed top-right corner -->
+  <!-- RED STRIKE COUNTER — always visible, fixed top-right corner -->
   <div id="hint-counter" aria-live="polite">
-    <span class="bulb">💡</span><span id="hint-count-num">0</span>
+    <span class="bulb">✖</span><span id="hint-count-num">0</span>
   </div>
 
   <!-- COUNTDOWN TIMER — docked by JS beside the focused word row -->
@@ -427,9 +427,9 @@
 
   <div id="controls">
     <p class="instructions">
-      Each word pairs with the one above it.<br>
-      Tap the next row, type your guess, then press Enter.<br>
-      ⏱ Every 15 seconds a letter is revealed and costs you a hint!
+      <strong>Connect the words, beat the clock.</strong><br>
+      Each word makes a common phrase with the one above it (GAME → SHOW → HORSE).<br>
+      Every 15 seconds a letter is revealed, and that's a strike. Fewest strikes wins.
     </p>
     <button id="submit-btn">Submit Guess</button>
     <button id="hint-btn">💡 Next Letter</button>
@@ -450,7 +450,7 @@
       <h2>🎉 Chain Complete!</h2>
       <p>You solved today's WordFlow.</p>
       <div class="final-hints" id="final-hints">0</div>
-      <div class="final-hints-label">Hints Used 🔴</div>
+      <div class="final-hints-label">Strikes 🔴</div>
       <button id="share-btn">📋 Share Result</button>
       <button id="close-modal">Close</button>
     </div>
@@ -967,9 +967,9 @@ document.getElementById("close-modal").addEventListener("click", () => {
 });
 
 document.getElementById("share-btn").addEventListener("click", async () => {
-  // Exact required share format.
-  const text = `WordFlow #${puzzle.number} | Hints Used: ${state.hints} 🔴 | ` +
-               `Can you beat my score?\n${GAME_URL}`;
+  // Share format uses the "strikes" vocabulary from the instructions.
+  const text = `WordFlow #${puzzle.number} | Strikes: ${state.hints} 🔴 | ` +
+               `Can you beat me?\n${GAME_URL}`;
   try {
     await navigator.clipboard.writeText(text);
     showToast("Copied to clipboard! 📋");
