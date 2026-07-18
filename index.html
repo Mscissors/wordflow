@@ -420,6 +420,14 @@
   .demo-tile.h { background: var(--gold); color: #1a1a1a; }
   .demo-tile.e { background: var(--tile-empty); border: 2px solid var(--tile-border); }
 
+  .avg-strikes {
+    color: var(--gold);
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    min-height: 1.2em;   /* reserves the line so START doesn't jump */
+  }
+
   /* Soft breathing glow makes START feel pressable */
   @keyframes startPulse {
     0%, 100% { box-shadow: 0 4px 16px rgba(91, 140, 255, 0.35); transform: scale(1); }
@@ -574,6 +582,9 @@
         <br><br>
         - Solve with the fewest strikes possible!
       </p>
+      <!-- Global average strikes for today, filled in async from the
+           stats database; stays empty (and invisible) if unreachable -->
+      <div id="avg-strikes" class="avg-strikes"></div>
       <button id="start-btn">▶ START</button>
     </div>
   </div>
@@ -965,6 +976,7 @@ function checkWin() {
   saveState();
   refreshAllRows();
   stopTimer();    // victory: the clock stops for good
+  reportResult(); // add this game to today's global stats
   document.getElementById("hint-btn").disabled = true;
   document.getElementById("submit-btn").disabled = true;
 
@@ -1087,6 +1099,62 @@ function updateHintCounter(pop = false) {
 document.getElementById("submit-btn").addEventListener("click", submitGuess);
 
 /* ==============================================================
+   7b. GLOBAL DAILY STATS (Firebase Realtime Database via REST)
+   --------------------------------------------------------------
+   Two anonymous counters are kept per Eastern date:
+     /daily/YYYY-MM-DD = { players: N, strikes: total }
+   When a player finishes, both are bumped atomically using the
+   REST increment sentinel {".sv": {"increment": n}} — no SDK, no
+   accounts, no personal data. The intro screen divides the two
+   numbers for today's average. If NOBODY has finished today yet
+   (e.g. right after the midnight rollover), yesterday's average
+   plus 2 is shown instead. If neither day has data or the network
+   is down, the line simply stays empty — stats are best-effort
+   and never block the game.
+   ============================================================== */
+const STATS_DB = "https://wordflow-30aa2-default-rtdb.firebaseio.com";
+
+/** Adds this player's finished game to today's global counters.
+    The state.reported flag (persisted) guarantees one report per
+    player per day, surviving page refreshes. */
+async function reportResult() {
+  if (state.reported) return;
+  try {
+    const res = await fetch(`${STATS_DB}/daily/${todayKey}.json`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        players: { ".sv": { "increment": 1 } },
+        strikes: { ".sv": { "increment": state.hints } }
+      })
+    });
+    if (res.ok) { state.reported = true; saveState(); }
+  } catch (e) { /* offline — skip silently */ }
+}
+
+/** Fills the intro-screen average line (async, best-effort). */
+async function loadAverageStrikes() {
+  const el = document.getElementById("avg-strikes");
+  try {
+    // Primary: today's real numbers.
+    const today = await (await fetch(`${STATS_DB}/daily/${todayKey}.json`)).json();
+    if (today && today.players > 0) {
+      const avg = (today.strikes / today.players).toFixed(1);
+      el.textContent = `Today's average: ${avg} strikes ✖`;
+      return;
+    }
+    // Fallback: nobody has finished yet today → yesterday's avg + 2.
+    const yKey = new Date(Date.parse(todayKey) - 86400000)
+      .toISOString().slice(0, 10);
+    const yest = await (await fetch(`${STATS_DB}/daily/${yKey}.json`)).json();
+    if (yest && yest.players > 0) {
+      const avg = (yest.strikes / yest.players + 2).toFixed(1);
+      el.textContent = `Today's average: ${avg} strikes ✖`;
+    }
+    // Neither day has data: leave the line empty.
+  } catch (e) { /* offline — leave the line empty */ }
+}
+
+/* ==============================================================
    8. VICTORY MODAL & SHARE
    ============================================================== */
 const overlay = document.getElementById("modal-overlay");
@@ -1162,9 +1230,12 @@ document.getElementById("intro-meta").textContent =
     month: "long", day: "numeric", year: "numeric", timeZone: "UTC"
   }).format(new Date(todayKey));
 
+loadAverageStrikes();   // fill the intro's average line (async)
+
 if (state.completed) {
   // Returning winner: skip the intro, lock controls, re-show the result.
   introOverlay.classList.add("hidden");
+  reportResult();   // backfill: wins from before stats existed still count
   document.getElementById("hint-btn").disabled = true;
   document.getElementById("submit-btn").disabled = true;
   showVictoryModal();
