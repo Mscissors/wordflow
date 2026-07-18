@@ -1168,10 +1168,23 @@ document.getElementById("close-modal").addEventListener("click", () => {
   overlay.classList.remove("visible");
 });
 
+/* Spoiler-free result grid: one emoji row per hidden word, top to
+   bottom. 🟩 = a letter the player guessed, 🟨 = a letter the timer
+   or hint button revealed — so every 🟨 in the grid IS one strike,
+   and a flawless game is solid green. Word lengths are visible on
+   the board before solving, so the grid reveals nothing new. */
+function buildShareGrid() {
+  return hiddenIndices.map(i => {
+    const revealed = state.words[i].hintLetters;
+    return puzzle.chain[i].split("")
+      .map((_, li) => li < revealed ? "🟨" : "🟩").join("");
+  }).join("\n");
+}
+
 document.getElementById("share-btn").addEventListener("click", async () => {
   // Share format uses the "strikes" vocabulary from the instructions.
-  const message = `WordFlow #${puzzle.number} | Strikes: ${state.hints} 🔴 | ` +
-                  `Can you beat me?`;
+  const message = `WordFlow #${puzzle.number} · ${state.hints} strike` +
+                  `${state.hints === 1 ? "" : "s"} ✖\n${buildShareGrid()}`;
 
   // Preferred path: the Web Share API opens the phone's native share
   // sheet (Messages, Mail, AirDrop…). Only exists on mobile browsers
