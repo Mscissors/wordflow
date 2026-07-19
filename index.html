@@ -102,26 +102,37 @@
     margin-bottom: 10px;
   }
 
-  /* ---------- RED HINT COUNTER (fixed corner badge) ---------- */
+  /* ---------- RED STRIKE COUNTER ----------
+     Docked (via JS, alongside the countdown timer) inside the focused
+     word row, absolutely positioned just to its RIGHT — mirror image
+     of the timer badge on the left. This keeps the strike count in
+     view on mobile, where a fixed corner badge scrolls away once the
+     player is a few rows down (iOS + on-screen keyboard). */
   #hint-counter {
-    position: fixed;
-    top: 12px;
-    right: 12px;
-    z-index: 50;
+    position: absolute;
+    left: calc(100% + 6px);
+    top: calc(50% - 16px);
+    height: 32px;
+    min-width: 46px;
+    padding: 0 9px;
+    border-radius: 16px;
     background: var(--red);
     color: #fff;
     font-weight: 800;
-    font-size: 1.05rem;
-    min-width: 46px;
-    height: 46px;
-    padding: 0 10px;
-    border-radius: 23px;
-    display: flex;
+    font-size: 0.85rem;
+    display: none;             /* shown once docked to a row */
     align-items: center;
     justify-content: center;
     gap: 4px;
     box-shadow: 0 4px 14px rgba(255, 71, 87, 0.45);
     transition: transform 0.18s ease;
+    pointer-events: none;      /* never blocks taps on the row */
+  }
+  /* Narrow phones: tuck both side badges in closer so 6-letter rows
+     plus their badges still fit the viewport. */
+  @media (max-width: 430px) {
+    #timer        { right: calc(100% + 3px); min-width: 46px; padding: 0 6px; }
+    #hint-counter { left:  calc(100% + 3px); min-width: 40px; padding: 0 6px; }
   }
   /* Quick "pop" animation each time the counter increments */
   #hint-counter.pop { transform: scale(1.25); }
@@ -517,7 +528,8 @@
 </head>
 <body>
 
-  <!-- RED STRIKE COUNTER — always visible, fixed top-right corner -->
+  <!-- RED STRIKE COUNTER — docked by JS beside the focused word row,
+       to its right (the timer badge docks to its left) -->
   <div id="hint-counter" aria-live="polite">
     <span class="bulb">✖</span><span id="hint-count-num">0</span>
   </div>
@@ -938,6 +950,7 @@ function focusFirstUnsolved() {
    they still flow through the ghostInput input path below. */
 document.addEventListener("keydown", (e) => {
   if (state.completed || focusedIndex === null) return;
+  if (rejectingIndex !== null) return;              // frozen during shake
   if (e.metaKey || e.ctrlKey || e.altKey) return;   // leave shortcuts alone
   if (e.key === "Backspace") {
     e.preventDefault();
@@ -959,10 +972,18 @@ function suppressStaleGhostInput() {
   ghostSuppressUntil = performance.now() + 150;
 }
 
+/* While a wrong guess shakes, the rejected word stays visible and all
+   typing is frozen; cleared when the shake ends (see submitGuess). */
+let rejectingIndex = null;
+
 /* Mobile keyboards fire input events on the ghost field instead. */
 ghostInput.addEventListener("input", () => {
   if (performance.now() < ghostSuppressUntil) {
     ghostInput.value = "";     // absorb the late echo of the submitted keystroke
+    return;
+  }
+  if (rejectingIndex !== null) {                    // frozen during shake
+    ghostInput.value = currentTyped;
     return;
   }
   if (state.completed || focusedIndex === null) return;
@@ -1009,14 +1030,23 @@ function submitGuess() {
   if (guess.toUpperCase() === answer.toUpperCase()) {
     solveWord(i);
   } else {
-    // Wrong: shake the row and clear the attempt.
+    // Wrong: shake the row with the attempt still visible so the player
+    // can see what they actually submitted, then clear it. Input stays
+    // frozen (rejectingIndex) for the duration of the shake.
     const row = boardEl.querySelector(`.word-row[data-index="${i}"]`);
+    rejectingIndex = i;
     row.classList.add("shake");
-    setTimeout(() => row.classList.remove("shake"), 500);
-    currentTyped = "";
-    ghostInput.value = "";
-    suppressStaleGhostInput();
-    refreshRow(i);
+    setTimeout(() => {
+      row.classList.remove("shake");
+      rejectingIndex = null;
+      // Clear the attempt unless the timer solved the word mid-shake.
+      if (focusedIndex === i && !state.words[i].solved) {
+        currentTyped = "";
+        ghostInput.value = "";
+        suppressStaleGhostInput();
+      }
+      refreshRow(i);
+    }, 500);
   }
 }
 
@@ -1118,18 +1148,22 @@ function renderTimer() {
   timerEl.classList.toggle("low", timeLeft <= 5);
 }
 
-/** Docks the countdown badge inside the focused row, so it renders
-    directly to the LEFT of the word being guessed. Hidden when no
-    row is focused (e.g. after victory). */
+/** Docks both side badges inside the focused row: the countdown to
+    its LEFT, the strike counter to its RIGHT. Hidden when no row is
+    focused (e.g. after victory). */
+const hintBadgeEl = document.getElementById("hint-counter");
 function positionTimer() {
   if (state.completed || focusedIndex === null) {
     timerEl.style.display = "none";
+    hintBadgeEl.style.display = "none";
     return;
   }
   const row = boardEl.querySelector(`.word-row[data-index="${focusedIndex}"]`);
   if (row) {
     row.appendChild(timerEl);      // reparent: absolute pos is row-relative
+    row.appendChild(hintBadgeEl);
     timerEl.style.display = "flex";
+    hintBadgeEl.style.display = "flex";
   }
 }
 
