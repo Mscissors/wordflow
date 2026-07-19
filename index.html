@@ -1125,7 +1125,11 @@ function revealNextLetter() {
 
   // Fully revealed by hints → counts as solved.
   if (ws.hintLetters >= answer.length) solveWord(i);
-  else refreshRow(i);
+  else {
+    refreshRow(i);
+    resetTimer();   // every reveal grants a fresh 15 seconds, whether
+                    // bought with the button or forced by the clock
+  }
 }
 
 document.getElementById("hint-btn").addEventListener("click", revealNextLetter);
