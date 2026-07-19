@@ -929,15 +929,24 @@ function focusFirstUnsolved() {
   else { focusedIndex = null; positionTimer(); }
 }
 
-/* Physical-keyboard support (desktop). */
+/* Physical-keyboard support (desktop).
+   preventDefault() keeps the keystroke out of ghostInput, so a physical
+   key is handled by THIS path only — without it the same keystroke also
+   lands in ghostInput and fires the input handler, which (once the word
+   completes and focus moves on) re-types the final letter into the next
+   row. Mobile on-screen keyboards send no usable key values here, so
+   they still flow through the ghostInput input path below. */
 document.addEventListener("keydown", (e) => {
   if (state.completed || focusedIndex === null) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;   // leave shortcuts alone
   if (e.key === "Backspace") {
+    e.preventDefault();
     currentTyped = currentTyped.slice(0, -1);
+    ghostInput.value = currentTyped;
     refreshRow(focusedIndex);
     return;
   }
-  if (/^[a-zA-Z]$/.test(e.key)) typeLetter(e.key);
+  if (/^[a-zA-Z]$/.test(e.key)) { e.preventDefault(); typeLetter(e.key); }
 });
 
 /* Mobile keyboards fire input events on the ghost field instead. */
@@ -956,6 +965,7 @@ function typeLetter(ch) {
   const maxLen = puzzle.chain[focusedIndex].length - ws.hintLetters;
   if (currentTyped.length >= maxLen) return;
   currentTyped += ch.toUpperCase();
+  ghostInput.value = currentTyped;   // keep both input paths in sync
   refreshRow(focusedIndex);
   if (currentTyped.length === maxLen) submitGuess();
 }
