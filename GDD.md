@@ -90,9 +90,10 @@ New puzzles are appended to the `PUZZLES` array in `index.html`. Each entry is a
 1. **Exactly 8 words.** Word 1 is the revealed anchor; words 2–8 are guessed.
 2. **Every word is a standalone English dictionary word, 6 letters or fewer.** No proper nouns as words (KEY WEST is acceptable because KEY and WEST are both common words; the *phrase* may be a name, the *words* may not be obscure).
 3. **Every adjacent pair, read top-to-bottom, forms a genuinely common two-word phrase or collocation.** "Common" means an average adult American would recognize it instantly: `secret agent`, `rush hour`, `bench press`, `game over`.
-4. **NO glued compound words as the link.** The pair must work as a spoken/written two-word phrase. `RAIN → BOW` (rainbow) is forbidden; `SPACE → BAR` (space bar) is fine. Borderline cases that are commonly written both ways (`sting ray`) are acceptable but prefer unambiguous phrases.
+4. **Compound links are allowed if the compound is widely known.** `SNOW → BALL` (snowball) and `RAIN → BOW` (rainbow) are fine, as are spoken phrases like `SPACE → BAR`. What matters is that an average adult instantly recognizes the join, not whether it is conventionally written with a space. Obscure or technical compounds still fail rule 3. *(Revised 2026-07-19: this rule previously banned compounds outright. The ban was stricter than the genre norm, since commercial word-chain games such as Chainlink and web games like ChainWhich and COMPOUND all permit them, and it disqualified some of the most guessable links available, which the game needs while average strike counts sit above target. Rule 7 below now carries the quality burden that this rule used to.)*
 5. **No word appears twice in the same chain.**
 6. Family-friendly: no profanity, slurs, drugs, or innuendo-dependent phrases.
+7. **The chain must PIVOT in meaning at least twice.** A pivot is a link where the shared word changes sense or subject: `BALL PIT → PIT STOP` (playground to motor racing), `DOOR BELL → BELL PEPPER` (chime to vegetable), `BAR STOOL → STOOL PIGEON` (furniture to informant). A chain where all 8 words sit in one topic is rejected even if every individual link is valid: `PEANUT BUTTER CUP CAKE POP CORN BREAD BOX` is seven legal food links and a bad puzzle. Also reject links between synonyms (`HOUND → DOG`), which stall instead of turning. This rule, not rule 4, is what keeps chains interesting.
 
 ### Quality guidelines (strive for these)
 - **Surprising turns make the fun.** The best chains pivot meaning mid-stream: `PARTY → FOUL → PLAY → DATE` or `KEY → WEST → COAST → GUARD`. A chain of same-topic words is boring.
@@ -111,6 +112,8 @@ New puzzles are appended to the `PUZZLES` array in `index.html`. Each entry is a
 ### Adding puzzles to the game
 1. In `index.html`, find `const PUZZLES = [`.
 2. Append new entries at the **end** of the array (never reorder or edit *earlier* entries once their day has passed — the day-to-chain mapping is positional, and reordering changes which chain a given date serves).
+   - Entries whose day has **not** yet arrived may be freely reordered, edited, or replaced: nobody has seen them. Index `n` is served on launch date + `n` days, so compute today's offset before touching anything and leave index 0 through today's index alone.
+   - If you reorder programmatically, normalize the trailing comma on every chain line. The last entry in the array has none, and once it moves into the middle, `["A"]` followed by `["B"]` parses as a property access and silently yields an `undefined` element instead of a syntax error.
 3. Format (match existing style):
    ```js
    ["ANCHOR", "WORD2", "WORD3", "WORD4", "WORD5", "WORD6", "WORD7", "WORD8"],
@@ -119,16 +122,27 @@ New puzzles are appended to the `PUZZLES` array in `index.html`. Each entry is a
 4. Editing **today's** chain mid-day is safe from a data-integrity standpoint (players' saved progress auto-resets via the chain signature) but resets everyone's progress — avoid unless necessary.
 5. Deploy: `git add index.html && git commit -m "..." && git push`.
 
-### Example of a compliant new chain
-```js
-["NIGHT", "LIFE", "GUARD", "RAIL", "ROAD", "TRIP", "WIRE", "TAP"],
-// night life, life guard?  ← STOP: "lifeguard"/"guardrail"/"railroad" are glued
-// compounds — this chain VIOLATES rule 4 and must be rejected.
-```
+### Examples
+
+ACCEPTED. All spoken two-word phrases, and it pivots (frog leg to leg room, room key to Key West):
 ```js
 ["ROYAL", "FAMILY", "TREE", "FROG", "LEG", "ROOM", "KEY", "WEST"],
-// royal family, family tree, tree frog, frog leg(s), leg room,
-// room key, key west  ← all spoken two-word phrases: ACCEPTED.
+// royal family, family tree, tree frog, frog leg(s), leg room, room key, key west
+```
+
+ACCEPTED. Heavy on glued compounds, which rule 4 used to forbid, but every
+join is instantly recognizable and the senses keep turning (a road trip becomes
+a tripwire, a wire becomes a wiretap):
+```js
+["NIGHT", "LIFE", "GUARD", "RAIL", "ROAD", "TRIP", "WIRE", "TAP"],
+// night life, life guard, guard rail, rail road, road trip, trip wire, wire tap
+```
+
+REJECTED. Seven perfectly valid links, but all 8 words are food and the chain
+never changes subject. This is the rule 7 failure mode:
+```js
+["PEANUT", "BUTTER", "CUP", "CAKE", "POP", "CORN", "BREAD", "BOX"],
+// peanut butter, butter cup, cup cake, cake pop, pop corn, corn bread, bread box
 ```
 
 ---
