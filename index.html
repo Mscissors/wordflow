@@ -949,8 +949,22 @@ document.addEventListener("keydown", (e) => {
   if (/^[a-zA-Z]$/.test(e.key)) { e.preventDefault(); typeLetter(e.key); }
 });
 
+/* iOS Safari delivers a keystroke's text into the field AFTER our code
+   has cleared it during guess submission, so the submitted word's last
+   letter reappears as fresh typing (same row on a wrong guess, next row
+   on a correct one). Any programmatic clear during submission opens a
+   short window; input events inside it are stale and get absorbed. */
+let ghostSuppressUntil = 0;
+function suppressStaleGhostInput() {
+  ghostSuppressUntil = performance.now() + 150;
+}
+
 /* Mobile keyboards fire input events on the ghost field instead. */
 ghostInput.addEventListener("input", () => {
+  if (performance.now() < ghostSuppressUntil) {
+    ghostInput.value = "";     // absorb the late echo of the submitted keystroke
+    return;
+  }
   if (state.completed || focusedIndex === null) return;
   const ws = state.words[focusedIndex];
   const maxLen = puzzle.chain[focusedIndex].length - ws.hintLetters;
@@ -1001,6 +1015,7 @@ function submitGuess() {
     setTimeout(() => row.classList.remove("shake"), 500);
     currentTyped = "";
     ghostInput.value = "";
+    suppressStaleGhostInput();
     refreshRow(i);
   }
 }
@@ -1009,6 +1024,7 @@ function solveWord(i, animate = true) {
   state.words[i].solved = true;
   currentTyped = "";
   ghostInput.value = "";
+  suppressStaleGhostInput();
   saveState();
   refreshRow(i);
   resetTimer();   // a solved word grants a fresh 15 seconds
