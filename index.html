@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<!-- interactive-widget=resizes-content: on Android/Chrome the on-screen
+     keyboard shrinks the layout viewport instead of just sliding a
+     window over it, so the board lays out in the space above the
+     keyboard rather than sitting behind it. Ignored by iOS Safari. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
 <title>WordFlow — Daily Word Chain Puzzle</title>
 
 <!-- Icons: favicon for browser tabs, apple-touch-icon for iPhone
@@ -312,13 +316,17 @@
   }
 
   /* Hidden input: captures typing & summons the mobile keyboard.
-     It is visually invisible but focusable. */
+     It is visually invisible but focusable.
+
+     It must stay INSIDE the viewport. Parked off-screen, Chrome on
+     Android tries to scroll the focused field back into view on every
+     keystroke, dragging the board out from under the player. */
   #ghost-input {
     position: fixed;
-    top: -100px;
+    top: 0;
     left: 0;
-    width: 10px;
-    height: 10px;
+    width: 1px;
+    height: 1px;
     opacity: 0.01;
     border: none;
     background: transparent;
@@ -905,6 +913,13 @@ function focusRow(i) {
   ghostInput.focus();          // summons the keyboard on mobile
   refreshAllRows();
   positionTimer();             // countdown badge follows the focus
+
+  // Once the keyboard has opened and the viewport has settled, make sure
+  // the row being typed into is actually on screen.
+  requestAnimationFrame(() => {
+    const row = boardEl.querySelector(`.word-row[data-index="${i}"]`);
+    if (row) row.scrollIntoView({ block: "center", behavior: "smooth" });
+  });
 }
 
 /** Auto-focus the first unsolved hidden word (nice QoL touch). */
