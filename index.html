@@ -284,7 +284,21 @@
     gap: 10px;
     width: 100%;
     max-width: 480px;
-    padding-bottom: 24px;
+    /* Pin the Next Letter button to the bottom of the viewport so it is
+       reachable while solving the top of the chain, instead of scrolling
+       off-screen below all 8 rows. The fade blends tiles that scroll
+       underneath. With interactive-widget=resizes-content the layout
+       viewport shrinks for the mobile keyboard, so bottom:0 sits just
+       above it rather than behind it. */
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    padding: 14px 0 16px;
+    background: linear-gradient(to top,
+      var(--bg) 0%, var(--bg) 55%, transparent 100%);
+    /* Lifted above the iOS on-screen keyboard by JS (see --kb-inset).
+       0 on desktop and Android, so the plain sticky behavior is unchanged. */
+    transform: translateY(calc(-1 * var(--kb-inset, 0px)));
   }
 
   .instructions {
@@ -1133,6 +1147,27 @@ function revealNextLetter() {
 }
 
 document.getElementById("hint-btn").addEventListener("click", revealNextLetter);
+
+/* Keep the sticky controls bar above the iOS on-screen keyboard.
+   iOS browsers are all WebKit and ignore interactive-widget=resizes-content,
+   so the layout viewport does NOT shrink for the keyboard and a bottom:0
+   sticky bar ends up hidden behind it (Android shrinks the layout viewport,
+   so it is already fine there). The VisualViewport API reports the region
+   actually visible above the keyboard; we expose the occluded bottom inset
+   as --kb-inset and #controls translates up by it. Resolves to 0 with no
+   keyboard, so desktop and Android behavior is unchanged. */
+(function keepControlsAboveKeyboard() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const root = document.documentElement;
+  function update() {
+    const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    root.style.setProperty("--kb-inset", inset + "px");
+  }
+  vv.addEventListener("resize", update);
+  vv.addEventListener("scroll", update);
+  update();
+})();
 
 /* ---------- 15-SECOND COUNTDOWN ----------
    Ticks once per second. At zero: force-reveal a letter (which
