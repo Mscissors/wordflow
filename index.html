@@ -199,13 +199,13 @@
   }
 
   .word-row {
-    position: relative;   /* anchor for the docked timer + strike badge */
+    position: relative;   /* anchor for the docked timer, strike badge & hint button */
     display: flex;
     gap: 5px;
     padding: 5px;
     border-radius: var(--radius);
     cursor: default;
-    transition: background 0.2s ease, box-shadow 0.2s ease;
+    transition: background 0.2s ease, box-shadow 0.2s ease, padding-bottom 0.2s ease;
   }
 
   /* Hidden (unsolved) rows are clickable */
@@ -214,6 +214,9 @@
   .word-row.focused {
     background: var(--surface);
     box-shadow: 0 0 0 2px var(--accent);
+    /* Extra room below the tiles for the docked "Next Letter" button
+       (see #hint-btn) so it doesn't overlap the next row. */
+    padding-bottom: 64px;
   }
 
   /* Shake animation for wrong guesses */
@@ -279,31 +282,6 @@
   }
   .tile.flip { animation: flipIn 0.4s ease both; }
 
-  /* ---------- Controls ---------- */
-  #controls {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    max-width: 480px;
-    /* Pin the Next Letter button to the bottom of the viewport so it is
-       reachable while solving the top of the chain, instead of scrolling
-       off-screen below all 8 rows. The fade blends tiles that scroll
-       underneath. With interactive-widget=resizes-content the layout
-       viewport shrinks for the mobile keyboard, so bottom:0 sits just
-       above it rather than behind it. */
-    position: sticky;
-    bottom: 0;
-    z-index: 20;
-    padding: 14px 0 16px;
-    background: linear-gradient(to top,
-      var(--bg) 0%, var(--bg) 55%, transparent 100%);
-    /* Lifted above the iOS on-screen keyboard by JS (see --kb-inset).
-       0 on desktop and Android, so the plain sticky behavior is unchanged. */
-    transform: translateY(calc(-1 * var(--kb-inset, 0px)));
-  }
-
   .instructions {
     color: var(--text-dim);
     font-size: 0.85rem;
@@ -324,14 +302,34 @@
   button:active { transform: scale(0.96); }
   button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* Prominent hint button */
+  /* ---------- HINT BUTTON ----------
+     Docked (via JS) inside the focused word row, absolutely positioned
+     centered directly BELOW the tiles — the row's extra padding-bottom
+     (see .word-row.focused) reserves the room so it never overlaps the
+     next row. This keeps it right next to the word being guessed
+     instead of pinned to the bottom of the viewport, so it scrolls into
+     view together with the row (see the scrollIntoView call in
+     focusRow). */
   #hint-btn {
+    position: absolute;
+    left: 50%;
+    bottom: 8px;
+    transform: translateX(-50%);
+    display: none;             /* shown once docked to a row */
     background: linear-gradient(135deg, var(--gold), #ffb347);
     color: #1a1a1a;
     font-size: 1.05rem;
     padding: 14px 34px;
+    white-space: nowrap;
     box-shadow: 0 4px 16px rgba(255, 209, 102, 0.35);
   }
+  /* Narrow phones: a slightly smaller pill so it doesn't crowd short rows. */
+  @media (max-width: 430px) {
+    #hint-btn { font-size: 0.95rem; padding: 12px 26px; }
+  }
+  /* Override the global button:active scale so the centering translateX
+     isn't clobbered by the press animation. */
+  #hint-btn:active { transform: translateX(-50%) scale(0.96); }
 
   /* ---------- Footer tagline ---------- */
   #tagline {
@@ -557,6 +555,10 @@
     <span>⏱</span><span id="timer-num">15</span>
   </div>
 
+  <!-- HINT BUTTON — docked by JS directly below the focused word row,
+       so it stays right next to the word being guessed. -->
+  <button id="hint-btn">💡 Next Letter</button>
+
   <header>
     <h1 class="logo">WordFlow</h1>
   </header>
@@ -565,10 +567,6 @@
 
   <!-- The word chain is rendered here by JS -->
   <main id="board"></main>
-
-  <div id="controls">
-    <button id="hint-btn">💡 Next Letter</button>
-  </div>
 
   <footer id="tagline">A new puzzle every day ✨</footer>
 
@@ -1163,28 +1161,8 @@ function revealNextLetter() {
   }
 }
 
-document.getElementById("hint-btn").addEventListener("click", revealNextLetter);
-
-/* Keep the sticky controls bar above the iOS on-screen keyboard.
-   iOS browsers are all WebKit and ignore interactive-widget=resizes-content,
-   so the layout viewport does NOT shrink for the keyboard and a bottom:0
-   sticky bar ends up hidden behind it (Android shrinks the layout viewport,
-   so it is already fine there). The VisualViewport API reports the region
-   actually visible above the keyboard; we expose the occluded bottom inset
-   as --kb-inset and #controls translates up by it. Resolves to 0 with no
-   keyboard, so desktop and Android behavior is unchanged. */
-(function keepControlsAboveKeyboard() {
-  const vv = window.visualViewport;
-  if (!vv) return;
-  const root = document.documentElement;
-  function update() {
-    const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-    root.style.setProperty("--kb-inset", inset + "px");
-  }
-  vv.addEventListener("resize", update);
-  vv.addEventListener("scroll", update);
-  update();
-})();
+const hintBtnEl = document.getElementById("hint-btn");
+hintBtnEl.addEventListener("click", revealNextLetter);
 
 /* ---------- 15-SECOND COUNTDOWN ----------
    Ticks once per second. At zero: force-reveal a letter (which
@@ -1204,22 +1182,29 @@ function renderTimer() {
   timerEl.classList.toggle("low", timeLeft <= 5);
 }
 
-/** Docks both side badges inside the focused row: the countdown to
-    its LEFT, the strike counter to its RIGHT. Hidden when no row is
+/** Docks the countdown, strike badge, and hint button inside the
+    focused row: the timer to its LEFT, the strike counter to its
+    RIGHT, and the hint button centered directly BELOW the tiles (the
+    row's extra padding-bottom while focused reserves that space — see
+    .word-row.focused). All three travel with focus and scroll into
+    view together with the row (see focusRow). Hidden when no row is
     focused (e.g. after victory). */
 const hintBadgeEl = document.getElementById("hint-counter");
 function positionTimer() {
   if (state.completed || focusedIndex === null) {
     timerEl.style.display = "none";
     hintBadgeEl.style.display = "none";
+    hintBtnEl.style.display = "none";
     return;
   }
   const row = boardEl.querySelector(`.word-row[data-index="${focusedIndex}"]`);
   if (row) {
     row.appendChild(timerEl);      // reparent: absolute pos is row-relative
     row.appendChild(hintBadgeEl);
+    row.appendChild(hintBtnEl);
     timerEl.style.display = "flex";
     hintBadgeEl.style.display = "flex";
+    hintBtnEl.style.display = "block";
   }
 }
 

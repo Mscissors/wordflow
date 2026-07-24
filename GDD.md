@@ -31,7 +31,7 @@ The game is deliberately **not framed as competitive** — it can be played solo
 - Every hidden word starts with its **first letter revealed for free** (blue "given" tile) the moment play begins. This costs nothing and does not count as a strike.
 - A **15-second countdown** runs during play. The timer badge is docked directly to the **left of the currently focused row** and follows the focus. It turns red and pulses during the final 5 seconds.
 - When the timer hits zero: the next sequential letter of the focused word is revealed (gold "hinted" tile, locked in), the **strike counter increments by 1**, and the timer restarts.
-- The player can also press the **"💡 Next Letter" button**, pinned to the bottom of the viewport, to reveal a letter voluntarily — same cost: 1 strike.
+- The player can also press the **"💡 Next Letter" button**, docked directly below the currently focused row (it travels with focus, same as the timer and strike badge), to reveal a letter voluntarily — same cost: 1 strike.
 - Letter reveals preserve in-progress typing: the revealed letter consumes the tile where the player's *first* typed letter sat; remaining typed letters stay in place.
 - If reveals complete a whole word, it auto-solves.
 - Solving a word resets the timer to 15.
