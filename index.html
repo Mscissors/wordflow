@@ -17,10 +17,10 @@
 <!-- Search & social metadata: og:image is what iMessage, WhatsApp,
      Discord, etc. display when the link is shared (absolute URL
      required — relative paths are ignored by most platforms) -->
-<meta name="description" content="Connect the words, no rush. A new word chain puzzle every day.">
+<meta name="description" content="Connect the words, beat the clock. A new word chain puzzle every day.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="WordFlow — Daily Word Chain Puzzle">
-<meta property="og:description" content="Connect the words, no rush. A new puzzle every day.">
+<meta property="og:description" content="Connect the words, beat the clock. A new puzzle every day.">
 <meta property="og:image" content="https://dailywordflow.com/wordflow-banner.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -103,10 +103,11 @@
   }
 
   /* ---------- RED STRIKE COUNTER ----------
-     Docked (via JS) inside the focused word row, absolutely positioned
-     just to its RIGHT. This keeps the strike count in view on mobile,
-     where a fixed corner badge scrolls away once the player is a few
-     rows down (iOS + on-screen keyboard). */
+     Docked (via JS, alongside the countdown timer) inside the focused
+     word row, absolutely positioned just to its RIGHT — mirror image
+     of the timer badge on the left. This keeps the strike count in
+     view on mobile, where a fixed corner badge scrolls away once the
+     player is a few rows down (iOS + on-screen keyboard). */
   #hint-counter {
     position: absolute;
     left: calc(100% + 6px);
@@ -127,38 +128,55 @@
     transition: transform 0.18s ease;
     pointer-events: none;      /* never blocks taps on the row */
   }
-  /* Narrow phones: tuck the badge in closer so 6-letter rows plus the
-     badge still fit the viewport. */
+  /* Narrow phones: tuck both side badges in closer so 6-letter rows
+     plus their badges still fit the viewport. */
   @media (max-width: 430px) {
-    #hint-counter { left: calc(100% + 3px); min-width: 40px; padding: 0 6px; }
+    #timer        { right: calc(100% + 3px); min-width: 46px; padding: 0 6px; }
+    #hint-counter { left:  calc(100% + 3px); min-width: 40px; padding: 0 6px; }
   }
   /* Quick "pop" animation each time the counter increments */
   #hint-counter.pop { transform: scale(1.25); }
   #hint-counter .bulb { font-size: 0.9rem; }
 
-  /* ---------- HINT BUTTON ----------
-     Docked (via JS) inside the focused word row, absolutely positioned
-     just to its LEFT — the spot the countdown timer used to occupy.
-     Tapping it reveals the next letter of the focused word; costs a
-     strike, same as before. */
-  #hint-btn {
+  /* ---------- COUNTDOWN TIMER ----------
+     Counts down from 15. When it hits 0 a letter is force-revealed,
+     the red counter goes up, and the timer restarts.
+     The badge is docked (via JS) inside the focused word row and
+     absolutely positioned just to its LEFT, so it always sits next
+     to the word currently being guessed.
+     Vertical centering uses top:calc(50% - height/2) instead of a
+     translateY transform so the .low pulse animation (which also
+     animates transform) can't knock it off-center. */
+  #timer {
     position: absolute;
     right: calc(100% + 6px);
-    top: calc(50% - 18px);
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
+    top: calc(50% - 16px);
+    height: 32px;
+    min-width: 54px;
+    padding: 0 9px;
+    border-radius: 16px;
+    background: var(--surface-2);
+    color: var(--text);
+    font-weight: 800;
+    font-size: 0.85rem;
     display: none;             /* shown once docked to a row */
     align-items: center;
     justify-content: center;
-    font-size: 1.15rem;
-    line-height: 1;
-    background: linear-gradient(135deg, var(--gold), #ffb347);
-    box-shadow: 0 4px 14px rgba(255, 209, 102, 0.45);
+    gap: 4px;
+    border: 1px solid var(--tile-border);
+    transition: background 0.3s ease, color 0.3s ease;
+    pointer-events: none;      /* never blocks taps on the row */
   }
-  /* Narrow phones: tuck the button in closer, same as the strike badge. */
-  @media (max-width: 430px) {
-    #hint-btn { right: calc(100% + 3px); width: 32px; height: 32px; font-size: 1.05rem; }
+  /* Last 5 seconds: turn red and pulse to warn the player */
+  @keyframes timerPulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.12); }
+  }
+  #timer.low {
+    background: var(--red);
+    border-color: var(--red);
+    color: #fff;
+    animation: timerPulse 1s ease infinite;
   }
 
   /* ---------- Game board / chain ---------- */
@@ -181,7 +199,7 @@
   }
 
   .word-row {
-    position: relative;   /* anchor for the docked strike badge */
+    position: relative;   /* anchor for the docked timer + strike badge */
     display: flex;
     gap: 5px;
     padding: 5px;
@@ -236,7 +254,7 @@
     color: var(--accent);
   }
 
-  /* A letter revealed by the hint button (costs a strike) */
+  /* A letter revealed by the hint button or the countdown timer (costs a strike) */
   .tile.hinted {
     background: var(--gold);
     border-color: var(--gold);
@@ -261,6 +279,31 @@
   }
   .tile.flip { animation: flipIn 0.4s ease both; }
 
+  /* ---------- Controls ---------- */
+  #controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 480px;
+    /* Pin the Next Letter button to the bottom of the viewport so it is
+       reachable while solving the top of the chain, instead of scrolling
+       off-screen below all 8 rows. The fade blends tiles that scroll
+       underneath. With interactive-widget=resizes-content the layout
+       viewport shrinks for the mobile keyboard, so bottom:0 sits just
+       above it rather than behind it. */
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    padding: 14px 0 16px;
+    background: linear-gradient(to top,
+      var(--bg) 0%, var(--bg) 55%, transparent 100%);
+    /* Lifted above the iOS on-screen keyboard by JS (see --kb-inset).
+       0 on desktop and Android, so the plain sticky behavior is unchanged. */
+    transform: translateY(calc(-1 * var(--kb-inset, 0px)));
+  }
+
   .instructions {
     color: var(--text-dim);
     font-size: 0.85rem;
@@ -280,6 +323,15 @@
   }
   button:active { transform: scale(0.96); }
   button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Prominent hint button */
+  #hint-btn {
+    background: linear-gradient(135deg, var(--gold), #ffb347);
+    color: #1a1a1a;
+    font-size: 1.05rem;
+    padding: 14px 34px;
+    box-shadow: 0 4px 16px rgba(255, 209, 102, 0.35);
+  }
 
   /* ---------- Footer tagline ---------- */
   #tagline {
@@ -494,14 +546,15 @@
 </head>
 <body>
 
-  <!-- HINT BUTTON — docked by JS beside the focused word row, to its
-       left (where the countdown timer used to sit). Reveals the next
-       letter of the focused word; costs a strike. -->
-  <button id="hint-btn" aria-label="Reveal next letter (costs a strike)">💡</button>
-
-  <!-- RED STRIKE COUNTER — docked by JS beside the focused word row -->
+  <!-- RED STRIKE COUNTER — docked by JS beside the focused word row,
+       to its right (the timer badge docks to its left) -->
   <div id="hint-counter" aria-live="polite">
     <span class="bulb">✖</span><span id="hint-count-num">0</span>
+  </div>
+
+  <!-- COUNTDOWN TIMER — docked by JS beside the focused word row -->
+  <div id="timer" aria-live="polite">
+    <span>⏱</span><span id="timer-num">15</span>
   </div>
 
   <header>
@@ -513,6 +566,10 @@
   <!-- The word chain is rendered here by JS -->
   <main id="board"></main>
 
+  <div id="controls">
+    <button id="hint-btn">💡 Next Letter</button>
+  </div>
+
   <footer id="tagline">A new puzzle every day ✨</footer>
 
   <!-- Invisible input: gives us keyboard events on mobile & desktop alike -->
@@ -523,15 +580,15 @@
   <div id="toast"></div>
 
   <!-- INTRO SCREEN — shown before play begins so the instructions
-       can be read calmly; the board only becomes interactive once
-       the player presses Start. -->
+       can be read calmly; the 15-second timer only starts once the
+       player presses Start. -->
   <div id="intro-overlay">
     <div id="intro-card">
       <img src="apple-touch-icon.png" alt="" class="intro-icon">
       <h1 class="logo">WordFlow</h1>
       <div class="intro-meta" id="intro-meta"><!-- "Puzzle #N · date" via JS --></div>
       <p class="instructions">
-        <strong>CONNECT THE WORDS,<br>NO RUSH.</strong>
+        <strong>CONNECT THE WORDS,<br>BEAT THE CLOCK.</strong>
         <br><br>
         - Each word makes a common phrase with the one above it:
       </p>
@@ -553,7 +610,7 @@
       <p class="instructions">
         - The first letter of every word is revealed for free.
         <br><br>
-        - Stuck? Tap the 💡 button beside your row — each letter costs a strike.
+        - A new letter every 15 seconds, but each one is a strike.
         <br><br>
         - Solve with the fewest strikes possible!
       </p>
@@ -746,13 +803,14 @@ const todayKey = getEasternDateKey();   // state is keyed by the Eastern date
 const STORAGE_KEY = "wordflow-state";
 
 /* Every hidden word starts with its first letter revealed for free —
-   a relaxing head start that costs nothing (see GIVEN_LETTERS below). */
+   a small head start that costs nothing (see GIVEN_LETTERS below). */
 const GIVEN_LETTERS = 1;
 
 /* state.words[i] tracks each HIDDEN word (index into puzzle.chain):
      solved      — player has correctly guessed it
      hintLetters — how many leading letters (beyond the free
-                   GIVEN_LETTERS) were revealed via the hint button */
+                   GIVEN_LETTERS) were revealed via a hint, whether
+                   from the button or the countdown timer */
 let state = {
   date: todayKey,
   sig: puzzle.chain.join("-"),  // identifies WHICH chain this state belongs to
@@ -869,7 +927,7 @@ function refreshRow(i) {
       tile.classList.add("given");
       tile.textContent = word[pos];
     } else if (pos < hintEnd) {
-      // Leading letters unlocked by the hint button (gold).
+      // Leading letters unlocked by the hint button or the timer (gold).
       tile.classList.add("hinted");
       tile.textContent = word[pos];
     } else if (i === focusedIndex) {
@@ -897,7 +955,7 @@ function focusRow(i) {
   ghostInput.value = "";
   ghostInput.focus();          // summons the keyboard on mobile
   refreshAllRows();
-  positionHintBadge();         // strike badge follows the focus
+  positionTimer();             // countdown badge follows the focus
 
   // Once the keyboard has opened and the viewport has settled, make sure
   // the row being typed into is actually on screen.
@@ -911,7 +969,7 @@ function focusRow(i) {
 function focusFirstUnsolved() {
   const next = hiddenIndices.find(i => !state.words[i].solved);
   if (next !== undefined) focusRow(next);
-  else { focusedIndex = null; positionHintBadge(); }
+  else { focusedIndex = null; positionTimer(); }
 }
 
 /* Physical-keyboard support (desktop).
@@ -1012,7 +1070,7 @@ function submitGuess() {
     setTimeout(() => {
       row.classList.remove("shake");
       rejectingIndex = null;
-      // Clear the attempt unless a hint solved the word mid-shake.
+      // Clear the attempt unless the timer solved the word mid-shake.
       if (focusedIndex === i && !state.words[i].solved) {
         currentTyped = "";
         ghostInput.value = "";
@@ -1030,6 +1088,7 @@ function solveWord(i, animate = true) {
   suppressStaleGhostInput();
   saveState();
   refreshRow(i);
+  resetTimer();   // a solved word grants a fresh 15 seconds
 
   if (animate) {
     // Staggered flip animation across the row's tiles.
@@ -1053,6 +1112,7 @@ function checkWin() {
   focusedIndex = null;
   saveState();
   refreshAllRows();
+  stopTimer();    // victory: the clock stops for good
   reportResult(); // add this game to today's global stats
   document.getElementById("hint-btn").disabled = true;
 
@@ -1061,14 +1121,15 @@ function checkWin() {
 }
 
 /* ==============================================================
-   7. HINT SYSTEM
+   7. HINT SYSTEM + AUTO-REVEAL TIMER
    --------------------------------------------------------------
    revealNextLetter() reveals the next sequential letter of the
-   focused word and increments the global red counter. It fires only
-   when the player presses the "Next Letter" button — there is no
-   clock forcing letters out, so players can take as long as they
-   like before reaching for a hint. If the reveal completes the
-   word, it auto-solves (and may trigger the win).
+   focused word and increments the global red counter. It is fired
+   two ways:
+     a) the player presses the "Next Letter" button, or
+     b) the 15-second countdown reaches zero (forced hint).
+   Either way the cost is identical: red counter +1. If the reveal
+   completes the word, it auto-solves (and may trigger the win).
    ============================================================== */
 function revealNextLetter() {
   if (state.completed) return;
@@ -1095,31 +1156,99 @@ function revealNextLetter() {
 
   // Fully revealed by hints → counts as solved.
   if (GIVEN_LETTERS + ws.hintLetters >= answer.length) solveWord(i);
-  else refreshRow(i);
+  else {
+    refreshRow(i);
+    resetTimer();   // every reveal grants a fresh 15 seconds, whether
+                    // bought with the button or forced by the clock
+  }
 }
 
-const hintBtnEl = document.getElementById("hint-btn");
-hintBtnEl.addEventListener("click", revealNextLetter);
+document.getElementById("hint-btn").addEventListener("click", revealNextLetter);
 
-/** Docks the hint button and strike badge inside the focused row,
-    absolutely positioned to its left and right respectively. Both
-    rows scroll into view on focus (see focusRow), so no keyboard-
-    avoidance logic is needed here. Hidden when no row is focused
-    (e.g. after victory). */
+/* Keep the sticky controls bar above the iOS on-screen keyboard.
+   iOS browsers are all WebKit and ignore interactive-widget=resizes-content,
+   so the layout viewport does NOT shrink for the keyboard and a bottom:0
+   sticky bar ends up hidden behind it (Android shrinks the layout viewport,
+   so it is already fine there). The VisualViewport API reports the region
+   actually visible above the keyboard; we expose the occluded bottom inset
+   as --kb-inset and #controls translates up by it. Resolves to 0 with no
+   keyboard, so desktop and Android behavior is unchanged. */
+(function keepControlsAboveKeyboard() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const root = document.documentElement;
+  function update() {
+    const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    root.style.setProperty("--kb-inset", inset + "px");
+  }
+  vv.addEventListener("resize", update);
+  vv.addEventListener("scroll", update);
+  update();
+})();
+
+/* ---------- 15-SECOND COUNTDOWN ----------
+   Ticks once per second. At zero: force-reveal a letter (which
+   bumps the red counter) and restart the countdown. Solving a
+   word correctly also resets it (see solveWord). The timer is
+   intentionally NOT persisted — a page refresh grants a fresh
+   15 seconds rather than punishing the reload. */
+const TIMER_SECONDS = 15;
+let timeLeft = TIMER_SECONDS;
+let timerInterval = null;
+const timerNum = document.getElementById("timer-num");
+const timerEl = document.getElementById("timer");
+
+function renderTimer() {
+  timerNum.textContent = timeLeft;
+  // Warning style for the final 5 seconds.
+  timerEl.classList.toggle("low", timeLeft <= 5);
+}
+
+/** Docks both side badges inside the focused row: the countdown to
+    its LEFT, the strike counter to its RIGHT. Hidden when no row is
+    focused (e.g. after victory). */
 const hintBadgeEl = document.getElementById("hint-counter");
-function positionHintBadge() {
+function positionTimer() {
   if (state.completed || focusedIndex === null) {
-    hintBtnEl.style.display = "none";
+    timerEl.style.display = "none";
     hintBadgeEl.style.display = "none";
     return;
   }
   const row = boardEl.querySelector(`.word-row[data-index="${focusedIndex}"]`);
   if (row) {
-    row.appendChild(hintBtnEl);     // reparent: absolute pos is row-relative
+    row.appendChild(timerEl);      // reparent: absolute pos is row-relative
     row.appendChild(hintBadgeEl);
-    hintBtnEl.style.display = "flex";
+    timerEl.style.display = "flex";
     hintBadgeEl.style.display = "flex";
   }
+}
+
+/** (Re)starts the countdown from a full 15 seconds. */
+function resetTimer() {
+  clearInterval(timerInterval);
+  timeLeft = TIMER_SECONDS;
+  renderTimer();
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    if (timeLeft <= 0) {
+      // Time's up: forced letter reveal, red counter +1, restart.
+      // (revealNextLetter may solve the word → solveWord calls
+      // resetTimer itself, replacing this interval — so only
+      // restart here if that didn't happen.)
+      const before = timeLeft;
+      revealNextLetter();
+      if (timeLeft === before) {  // interval not already replaced
+        timeLeft = TIMER_SECONDS;
+      }
+    }
+    renderTimer();
+  }, 1000);
+}
+
+/** Stops the countdown entirely (on victory). */
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
 }
 
 /** Updates the red corner badge; `pop` animates the bump. */
@@ -1204,10 +1333,10 @@ document.getElementById("close-modal").addEventListener("click", () => {
 
 /* Spoiler-free result grid: one emoji row per hidden word, top to
    bottom. 🟩 = a letter the player guessed (or the free starting
-   letter, which costs nothing), 🟨 = a letter the hint button
-   revealed — so every 🟨 in the grid IS one strike, and a flawless
-   game is solid green. Word lengths are visible on the board before
-   solving, so the grid reveals nothing new. */
+   letter, which costs nothing), 🟨 = a letter the hint button or the
+   countdown timer revealed — so every 🟨 in the grid IS one strike,
+   and a flawless game is solid green. Word lengths are visible on
+   the board before solving, so the grid reveals nothing new. */
 function buildShareGrid() {
   return hiddenIndices.map(i => {
     const hintEnd = GIVEN_LETTERS + state.words[i].hintLetters;
@@ -1287,12 +1416,13 @@ if (state.completed) {
   document.getElementById("hint-btn").disabled = true;
   showVictoryModal();
 } else {
-  // The intro screen is up. NOTHING runs — no focused row — until the
-  // player presses START, so the instructions can be read without
-  // pressure.
+  // The intro screen is up. NOTHING runs — no timer, no focused row —
+  // until the player presses START, so the instructions can be read
+  // without pressure.
   startBtn.addEventListener("click", () => {
     introOverlay.classList.add("hidden");
     focusFirstUnsolved();
+    resetTimer();   // the 15-second clock starts NOW
   });
 }
 </script>
