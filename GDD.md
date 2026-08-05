@@ -153,5 +153,5 @@ never changes subject. This is the rule 7 failure mode:
 
 - Stats are unauthenticated and spoofable by a motivated actor (acceptable for current scale).
 - Puzzle list is public in the page source — solutions are viewable by anyone who opens dev tools (inherent to serverless design; acceptable).
-- The 21-day cycle repeats silently; extend `PUZZLES` before day 22 (2026-08-08) to avoid repeats.
+- The rotation repeats silently once it runs out. `PUZZLES` now holds **42 chains**, so index 0 is served again on **day 43 = 2026-08-29**; extend the array before then to avoid repeats. *(This line previously said "21-day cycle / day 22 / 2026-08-08", which was written when the array held 21 chains. Commit eae4c1c doubled it to 42 and moved the cliff out by three weeks.)*
 - Ideas floated but not built: streak tracking, strike-count distribution graph ("you beat X% of players"), archive of past puzzles, hard mode (10-second timer), first-letter-free variant for the final word (superseded 2026-07-22 by giving every word a free first letter). *(An untimed variant with no countdown was tried on 2026-07-22 and reverted the next day in favor of the timer — it made the game too easy; the free first letter stayed.)*
