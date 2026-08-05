@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="intro-open">
 <head>
 <meta charset="UTF-8">
 <!-- interactive-widget=resizes-content: on Android/Chrome the on-screen
@@ -380,6 +380,15 @@
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   /* ---------- Intro screen ---------- */
+  /* While the intro is up it must be the ONLY thing that scrolls. The
+     board and keyboard behind it make the page scrollable too, and on
+     iOS Safari a position:fixed element is anchored to the LAYOUT
+     viewport: scrolling the page drags the overlay up with it, so the
+     tail of the card ends up clipped above the fold and no amount of
+     swiping brings it back. Locking the page kills that second
+     scroller. Removed the moment START is pressed. */
+  html.intro-open, html.intro-open body { overflow: hidden; }
+
   /* The card is centered by `margin: auto` on the card, NOT by
      align-items: center. Both look identical when the card fits, but
      only auto margins collapse to 0 once the card is taller than the
@@ -389,7 +398,15 @@
      START button instead of seeing it sheared in half. */
   #intro-overlay {
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    /* NOT `inset: 0`/`100vh`: both resolve against the large viewport
+       (toolbars hidden), so the bottom of the overlay sits behind the
+       Safari toolbar and the last stretch of scroll is unreachable.
+       100dvh tracks the viewport that is actually on screen. */
+    height: 100vh;
+    height: 100dvh;
     background: var(--bg);       /* fully opaque: covers the board */
     display: flex;
     justify-content: center;
@@ -405,7 +422,9 @@
     flex-direction: column;
     align-items: center;
     gap: 16px;
-    padding: 24px;
+    /* Deep bottom padding so the last thing the scroll can fail to
+       reach is empty space, never the START button itself. */
+    padding: 24px 24px 56px;
     max-width: 440px;
     margin: auto;      /* centers when it fits, scrolls when it does not */
     text-align: center;
@@ -1403,9 +1422,15 @@ document.getElementById("intro-meta").textContent =
 
 loadAverageStrikes();   // fill the intro's average line (async)
 
+/** Dismisses the intro and hands scrolling back to the page. */
+function closeIntro() {
+  introOverlay.classList.add("hidden");
+  document.documentElement.classList.remove("intro-open");
+}
+
 if (state.completed) {
   // Returning winner: skip the intro, lock controls, re-show the result.
-  introOverlay.classList.add("hidden");
+  closeIntro();
   reportResult();   // backfill: wins from before stats existed still count
   document.getElementById("hint-btn").disabled = true;
   showVictoryModal();
@@ -1414,7 +1439,7 @@ if (state.completed) {
   // until the player presses START, so the instructions can be read
   // without pressure.
   startBtn.addEventListener("click", () => {
-    introOverlay.classList.add("hidden");
+    closeIntro();
     focusFirstUnsolved();
     resetTimer();   // the 15-second clock starts NOW
   });
