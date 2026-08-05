@@ -380,13 +380,21 @@
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   /* ---------- Intro screen ---------- */
+  /* The card is centered by `margin: auto` on the card, NOT by
+     align-items: center. Both look identical when the card fits, but
+     only auto margins collapse to 0 once the card is taller than the
+     phone. align-items: center overflows off BOTH ends, pushing the
+     top above the scroll origin where it can never be reached. Paired
+     with overflow-y here, short screens scroll down to the whole
+     START button instead of seeing it sheared in half. */
   #intro-overlay {
     position: fixed;
     inset: 0;
     background: var(--bg);       /* fully opaque: covers the board */
     display: flex;
-    align-items: center;
     justify-content: center;
+    overflow-y: auto;
+    overscroll-behavior: contain;   /* no scroll chaining to the board */
     z-index: 90;
     transition: opacity 0.4s ease;   /* smooth fade into the game */
   }
@@ -399,6 +407,7 @@
     gap: 16px;
     padding: 24px;
     max-width: 440px;
+    margin: auto;      /* centers when it fits, scrolls when it does not */
     text-align: center;
   }
   #intro-card .instructions { font-size: 0.95rem; line-height: 1.55; }
