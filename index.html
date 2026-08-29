@@ -550,8 +550,20 @@
     font-size: 0.8rem;
     text-transform: uppercase;
     letter-spacing: 2px;
+    margin-bottom: 10px;
+  }
+  /* One-line comparison against today's global average. Green when
+     the player came in under it. Empty when the stats fetch failed,
+     in which case its margin collapses to keep the original 18px
+     gap above the share button. */
+  .vs-average {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    font-weight: 600;
     margin-bottom: 18px;
   }
+  .vs-average.better { color: var(--green); }
+  .vs-average:empty { margin-bottom: 8px; }
 
   #share-btn {
     background: var(--green);
@@ -654,6 +666,9 @@
       <p>You solved today's WordFlow.</p>
       <div class="final-hints" id="final-hints">0</div>
       <div class="final-hints-label">Strikes 🔴</div>
+      <!-- How this run compares to today's global average; filled in
+           async, stays empty (and collapsed) if stats are unreachable -->
+      <div class="vs-average" id="vs-average"></div>
       <button id="share-btn">📤 Share Result</button>
       <button id="close-modal">Close</button>
     </div>
@@ -1386,6 +1401,14 @@ function updateHintCounter(pop = false) {
    ============================================================== */
 const STATS_DB = "https://wordflow-30aa2-default-rtdb.firebaseio.com";
 
+/* Today's global average strikes, as a raw number, cached once
+   loadAverageStrikes() resolves. Stays null while in flight and
+   if the fetch fails, which is what keeps the victory modal's
+   comparison line empty rather than wrong. Read before this
+   player's own result is reported, so it is the field they were
+   actually playing against. */
+let dailyAverage = null;
+
 /** Adds this player's finished game to today's global counters.
     The state.reported flag (persisted) guarantees one report per
     player per day, surviving page refreshes. */
@@ -1410,8 +1433,9 @@ async function loadAverageStrikes() {
     // Primary: today's real numbers.
     const today = await (await fetch(`${STATS_DB}/daily/${todayKey}.json`)).json();
     if (today && today.players > 0) {
-      const avg = (today.strikes / today.players).toFixed(1);
-      el.textContent = `Today's average: ${avg} strikes ✖`;
+      dailyAverage = today.strikes / today.players;
+      el.textContent = `Today's average: ${dailyAverage.toFixed(1)} strikes ✖`;
+      fillAverageComparison();   // modal may already be open (returning winner)
       return;
     }
     // Fallback: nobody has finished yet today → yesterday's avg + 2.
@@ -1419,8 +1443,9 @@ async function loadAverageStrikes() {
       .toISOString().slice(0, 10);
     const yest = await (await fetch(`${STATS_DB}/daily/${yKey}.json`)).json();
     if (yest && yest.players > 0) {
-      const avg = (yest.strikes / yest.players + 2).toFixed(1);
-      el.textContent = `Today's average: ${avg} strikes ✖`;
+      dailyAverage = yest.strikes / yest.players + 2;
+      el.textContent = `Today's average: ${dailyAverage.toFixed(1)} strikes ✖`;
+      fillAverageComparison();   // modal may already be open (returning winner)
     }
     // Neither day has data: leave the line empty.
   } catch (e) { /* offline — leave the line empty */ }
@@ -1431,8 +1456,25 @@ async function loadAverageStrikes() {
    ============================================================== */
 const overlay = document.getElementById("modal-overlay");
 
+/** Writes the modal's one-line verdict against today's average.
+    Called from both showVictoryModal() and loadAverageStrikes()
+    because either can finish first: a returning winner sees the
+    modal on page load, possibly before the stats fetch resolves. */
+function fillAverageComparison() {
+  if (dailyAverage === null) return;   // no stats: leave the line empty
+  const el = document.getElementById("vs-average");
+  const diff = dailyAverage - state.hints;   // positive = under the average
+  const mag = Math.abs(diff).toFixed(1);
+  el.classList.toggle("better", diff >= 0.05);
+  el.textContent =
+    diff >= 0.05  ? `${mag} fewer strikes than today's average` :
+    diff <= -0.05 ? `${mag} more strikes than today's average`  :
+                    "Right on today's average";
+}
+
 function showVictoryModal() {
   document.getElementById("final-hints").textContent = state.hints;
+  fillAverageComparison();
   overlay.classList.add("visible");
 }
 

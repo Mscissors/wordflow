@@ -39,7 +39,7 @@ The game is deliberately **not framed as competitive** — it can be played solo
 
 ### Win state
 - Puzzle is complete when all 7 hidden words are solved. Timer stops permanently.
-- A victory modal shows the final strike count and a **Share** button.
+- A victory modal shows the final strike count, a one-line comparison against today's global average ("2.4 fewer strikes than today's average", green when under it; "N more strikes than…" when over; "Right on today's average" within 0.05), and a **Share** button. The comparison reuses the average already fetched for the intro, read *before* this player's result is reported, so players are measured against the field they played. If the stats fetch failed the line stays empty and its margin collapses, leaving the modal's original spacing.
 - Share uses the native share sheet on mobile (Web Share API) and clipboard-copy on desktop. Format:
   `WordFlow #<puzzleNumber> | Strikes: <N> 🔴 | Can you beat me?` + the game URL.
 
