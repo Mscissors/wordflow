@@ -54,7 +54,7 @@ The game is deliberately **not framed as competitive** — it can be played solo
 - **Global rollover at midnight US Eastern time** (`America/New_York` via `Intl.DateTimeFormat`, which handles EST/EDT automatically). Everyone on Earth flips to the new puzzle at the same instant. This is NOT per-timezone like Wordle.
 - `LAUNCH_DATE = "2026-07-18"` (Eastern). Puzzle number = whole days since launch + 1.
 - Puzzles live in the ordered `PUZZLES` array in `index.html`. The day's chain is `PUZZLES[offset % PUZZLES.length]` — the list **cycles** when exhausted, so the game never breaks. Extending the list extends the period before repeats.
-- There are currently **21 chains** (see `PUZZLES` in `index.html` for the canonical list).
+- There are currently **90 chains** (see `PUZZLES` in `index.html` for the canonical list). This count goes stale every time the array grows; recompute it from `PUZZLES.length` rather than trusting it.
 
 ## 4. Persistence & Stats
 
@@ -153,5 +153,5 @@ never changes subject. This is the rule 7 failure mode:
 
 - Stats are unauthenticated and spoofable by a motivated actor (acceptable for current scale).
 - Puzzle list is public in the page source — solutions are viewable by anyone who opens dev tools (inherent to serverless design; acceptable).
-- The rotation repeats silently once it runs out. `PUZZLES` holds **60 chains** as of 2026-08-05, so index 0 is served again on **day 61 = 2026-09-16**; extend the array before then to avoid repeats. *(This line has now been stale twice: it said "21 chains / 2026-08-08" after eae4c1c doubled the array to 42, and "42 chains / 2026-08-29" until 18 more were appended. Recompute it from `PUZZLES.length` whenever you add chains rather than trusting the prose.)*
+- The rotation repeats silently once it runs out. `PUZZLES` holds **90 chains** as of 2026-08-29, so index 0 is served again on **day 91 = 2026-10-16**; extend the array before then to avoid repeats. *(This line has now been stale three times: "21 chains / 2026-08-08" after eae4c1c doubled the array to 42, "42 chains / 2026-08-29" until 18 more were appended, and "60 chains / 2026-09-16" until 30 more were appended. Recompute it from `PUZZLES.length` whenever you add chains rather than trusting the prose.)*
 - Ideas floated but not built: streak tracking, strike-count distribution graph ("you beat X% of players"), archive of past puzzles, hard mode (10-second timer), first-letter-free variant for the final word (superseded 2026-07-22 by giving every word a free first letter). *(An untimed variant with no countdown was tried on 2026-07-22 and reverted the next day in favor of the timer — it made the game too easy; the free first letter stayed.)*
