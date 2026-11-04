@@ -1544,7 +1544,9 @@ let state = {
   reported: false,  // today's result added to the /daily counters
   scoreSent: false, // today's result written to the leaderboard
   startedAt: null,  // wall-clock ms when START was first pressed
-  secs: null        // whole seconds from START to the final word
+  pausedMs: 0,      // time the page spent hidden since START (not counted)
+  hiddenAt: null,   // wall-clock ms the page was last hidden, while hidden
+  secs: null        // whole seconds of play from START to the final word
 };
 
 /* Indices of the hidden words — everything except the first word,
@@ -1574,6 +1576,8 @@ function loadState() {
     state.reported = !!saved.reported;
     state.scoreSent = !!saved.scoreSent;
     state.startedAt = typeof saved.startedAt === "number" ? saved.startedAt : null;
+    state.pausedMs = typeof saved.pausedMs === "number" ? saved.pausedMs : 0;
+    state.hiddenAt = typeof saved.hiddenAt === "number" ? saved.hiddenAt : null;
     state.secs = Number.isInteger(saved.secs) ? saved.secs : null;
     hiddenIndices.forEach(i => {
       if (saved.words && saved.words[i]) {
@@ -1851,11 +1855,13 @@ function checkWin() {
   if (!allSolved) return;
 
   state.completed = true;
-  // Solve time is wall clock from the first START press, so reloading
-  // to reread the intro (which pauses the 15-second clock) still
-  // counts. It only breaks ties on the leaderboard.
+  // Solve time is wall clock from the first START press minus the
+  // time the page was hidden (see pauseSolveClock), so walking away
+  // or closing the tab doesn't count, but rereading the intro after a
+  // reload does. It only breaks ties on the leaderboard.
   if (state.startedAt && state.secs === null) {
-    state.secs = Math.max(1, Math.round((Date.now() - state.startedAt) / 1000));
+    const played = Date.now() - state.startedAt - state.pausedMs;
+    state.secs = Math.max(1, Math.round(played / 1000));
   }
   focusedIndex = null;
   saveState();
@@ -1981,6 +1987,26 @@ function resetTimer() {
     renderTimer();
   }, 1000);
 }
+
+/* Solve-time pause: while the page is hidden (another tab or app,
+   phone locked, tab closed) the solve time doesn't run. hiddenAt is
+   saved, so a tab closed mid-game and reopened hours later only
+   counts the time actually spent on the page. The 15-second
+   countdown is untouched. */
+function pauseSolveClock() {
+  if (!state.startedAt || state.completed || state.hiddenAt !== null) return;
+  state.hiddenAt = Date.now();
+  saveState();
+}
+function resumeSolveClock() {
+  if (state.hiddenAt === null) return;
+  state.pausedMs += Math.max(0, Date.now() - state.hiddenAt);
+  state.hiddenAt = null;
+  saveState();
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) pauseSolveClock(); else resumeSolveClock();
+});
 
 /** Stops the countdown entirely (on victory). */
 function stopTimer() {
@@ -2979,6 +3005,8 @@ if (state.completed) {
   submitScore().then(loadBoard);
   showVictoryModal();
 } else {
+  // Back from a closed tab: the time it was gone doesn't count.
+  if (!document.hidden) resumeSolveClock();
   // The intro screen is up. NOTHING runs — no timer, no focused row —
   // until the player presses START, so the instructions can be read
   // without pressure.
