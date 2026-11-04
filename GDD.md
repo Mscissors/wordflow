@@ -59,14 +59,26 @@ The game is deliberately **not framed as competitive** — it can be played solo
 ## 4. Persistence & Stats
 
 ### Local state (localStorage, key `wordflow-state`)
-Saves per-day progress: solved words, revealed-letter counts, strike total, completed flag, reported flag. Keyed by Eastern date **and a chain signature** (`chain.join("-")`) — state is discarded if the date OR the chain changes, so editing a live puzzle safely resets players.
+Saves per-day progress: solved words, revealed-letter counts, strike total, completed flag, reported flag, leaderboard-sent flag, `startedAt` (wall clock of the first START press) and `secs` (solve time, set on the win). Keyed by Eastern date **and a chain signature** (`chain.join("-")`): state is discarded if the date OR the chain changes, so editing a live puzzle safely resets players.
 
 ### Global stats (Firebase Realtime Database, REST — no SDK)
 - Database: `https://wordflow-30aa2-default-rtdb.firebaseio.com` (project `wordflow-30aa2`, free Spark tier).
 - Schema: `/daily/<YYYY-MM-DD> = { players: <count>, strikes: <total> }` — nothing else, fully anonymous.
-- On win, the client PATCHes atomic increments: `{"players":{".sv":{"increment":1}},"strikes":{".sv":{"increment":N}}}`. The persisted `reported` flag ensures one report per player per day.
+- On win, the client PATCHes atomic increments: `{"players":{".sv":{"increment":1}},"strikes":{".sv":{"increment":N}}}`. The persisted `reported` flag ensures one report per player per day. (Until 2026-11-03 `loadState()` never read that flag back, so every reload of a finished game re-reported it and `/daily` counts before that date are inflated.)
 - The intro shows `Today's average: X.X strikes ✖` = `strikes / players` for today. If today has no players yet, it shows **yesterday's average + 2**. If neither day has data or the network fails, the line stays empty — stats are best-effort and never block gameplay.
 - Security rules (published, no expiry): public read of `/daily`; `players` may only increment by exactly 1 per write; `strikes` may only increase, max +200 per write; no deletes/resets; everything else locked.
+
+### Personal stats (localStorage, key `wordflow-history`)
+One record per finished day, kept on the device with no account: `{ "YYYY-MM-DD": { n, s, t, a, p, r } }` = puzzle number, strikes, solve seconds, that day's global average, percentile, best top-10 rank. The 📊 button (header, intro card, win screen) opens the stats screen: played, average strikes, current and best streak (consecutive Eastern dates), personal best, top-10 finishes, a strike distribution (0 to 9, 10+) and a recent-form chart of the last 30 games against the daily average. The win screen adds "New personal best!" and "N-day streak". History began on 2026-11-03; earlier days were never recorded. Clearing browser data erases it.
+
+### Daily top 10 (Firebase RTDB + Anonymous Auth, REST, no SDK)
+- Every finisher writes `/scores/<date>/<uid> = { s: strikes, t: seconds, at: server timestamp }`; a top-10 finisher may write `/names/<date>/<uid> = "Name"`. `<uid>` is Firebase Anonymous Auth: invisible, no sign-in. Token and refresh token live in localStorage `wordflow-auth`; the last name used lives in `wordflow-name` and is posted automatically on later top-10 days.
+- Ranking: fewest strikes, then fastest solve time (wall clock from first START, so reloading does not pause it), then earliest finish. The client reads the whole day's scores once and computes both the board and the percentile; entries whose server timestamp is not today (Eastern) are ignored.
+- **The player count is never shown.** No totals, no rank below 10th, and the percentile ("You beat N% of players so far today") only appears once 5 people have finished. The raw data is still readable by anyone who opens devtools, same as `/daily`.
+- Names: 2 to 12 characters, letters, numbers, single spaces. `NAME_BLOCK_STRONG` (blocked anywhere, leetspeak and repeated letters caught) and `NAME_BLOCK_WORD` (whole word only, to spare Cassandra, Hancock, Sussex) in `index.html`. The strong list is also compiled into the security rules by `marketing/tools/build_firebase_rules.js`; re-run and re-paste the rules after editing it. To remove a bad name or a fake score: Firebase console > Realtime Database > Data > `names/<date>/<uid>` or `scores/<date>/<uid>` > delete.
+- Rules: one score per uid per day (write-once), only the owner may write its own score and name, `at` must equal server `now`, strikes 0 to 40, time 10 s to 24 h, names re-checked against the strong list. Source: `marketing/tools/firebase-rules.json` (the complete rules, `daily` included; paste over everything in the console).
+- Not cheat-proof (no accounts, answers are in the page source, a private window gets a fresh identity). Proportionate for the current audience; if it gets abused, the next step is server-side validation in Cloud Functions (Blaze plan).
+- `FIREBASE_API_KEY` empty in `index.html` = the feature is dark (no auth calls, no Top 10 tab, no leaderboard lines). Personal stats work either way.
 
 ## 5. Visual Design
 

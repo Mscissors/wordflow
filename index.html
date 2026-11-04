@@ -668,6 +668,225 @@ var WORDFLOW_SEASON = (function () {
     padding: 8px;
   }
 
+  /* Win-screen extras: percentile, streak / personal best, and the
+     leaderboard rank with its name form. Every line is empty (and
+     collapsed) until it has something true to say. */
+  .win-line {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .win-line:empty { display: none; }
+  .win-line.gold { color: var(--gold); }
+  #victory-modal { max-height: 92dvh; overflow-y: auto; }
+
+  .rank-box:empty { display: none; }
+  .rank-box {
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+  .rank-title { color: var(--gold); font-weight: 800; margin-bottom: 8px; }
+  .name-form { display: flex; gap: 8px; }
+  .name-form input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 1rem;      /* 16px+ keeps iOS from zooming on focus */
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 2px solid var(--tile-border);
+    background: var(--bg);
+    color: var(--text);
+  }
+  .name-form input:focus { outline: none; border-color: var(--accent); }
+  .name-form button {
+    background: var(--accent);
+    color: #fff;
+    padding: 10px 16px;
+    font-size: 0.95rem;
+  }
+  .name-error { color: var(--red); font-size: 0.8rem; margin-top: 6px; }
+  .name-error:empty { display: none; }
+  .name-saved { color: var(--text); font-size: 0.9rem; }
+  .link-btn {
+    background: transparent;
+    color: var(--accent);
+    font-size: 0.85rem;
+    padding: 2px 4px;
+    text-decoration: underline;
+  }
+
+  #open-stats-win {
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 0.95rem;
+    padding: 12px 24px;
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  /* Header + intro entry points to the stats screen */
+  #stats-btn {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    font-size: 1.35rem;
+    padding: 6px 8px;
+    line-height: 1;
+  }
+  #stats-btn:active { transform: translateY(-50%) scale(0.92); }
+  #intro-stats-btn {
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    padding: 8px 12px;
+    margin-top: -4px;
+  }
+
+  /* ---------- Stats & Top 10 screen ---------- */
+  #stats-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--overlay-dim);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 110;            /* above the victory modal it can open from */
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  #stats-overlay.visible { opacity: 1; pointer-events: auto; }
+  #stats-card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--surface-2);
+    border-radius: 20px;
+    padding: 20px 18px 18px;
+    width: min(calc(100vw - 32px), 400px);
+    max-height: 90dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  }
+  #stats-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 1.3rem;
+    padding: 4px 8px;
+  }
+  .tabs { display: flex; gap: 6px; margin: 0 36px 16px 0; }
+  .tab {
+    flex: 1;
+    background: var(--surface-2);
+    color: var(--text-dim);
+    padding: 9px 6px;
+    font-size: 0.9rem;
+  }
+  .tab.active { background: var(--accent); color: #fff; }
+  .tab-panel[hidden] { display: none; }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .stat-num { font-size: 1.6rem; font-weight: 800; color: var(--text); line-height: 1.1; }
+  .stat-label {
+    font-size: 0.66rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-top: 2px;
+  }
+  .stat-note { color: var(--text-dim); font-size: 0.85rem; text-align: center; margin: 4px 0; }
+  .stat-note b { color: var(--text); }
+  .section-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 18px 0 2px;
+  }
+  .section-sub { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 8px; }
+  .empty-note { color: var(--text-dim); font-size: 0.9rem; text-align: center; padding: 18px 8px; }
+
+  /* Strike distribution: one column per strike count, 10+ pooled */
+  .dist { display: flex; align-items: flex-end; gap: 2px; height: 104px; }
+  .dist-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100%;
+  }
+  .dist-count { font-size: 0.7rem; color: var(--text-dim); margin-bottom: 2px; min-height: 1em; }
+  .dist-bar {
+    width: 100%;
+    max-width: 26px;
+    background: var(--tile-border);
+    border-radius: 4px 4px 0 0;
+  }
+  .dist-col.today .dist-bar { background: var(--accent); }
+  .dist-col.today .dist-count { color: var(--text); font-weight: 700; }
+  .dist-labels { display: flex; gap: 2px; border-top: 1px solid var(--tile-border); padding-top: 3px; }
+  .dist-labels span { flex: 1; text-align: center; font-size: 0.7rem; color: var(--text-dim); }
+
+  /* Recent-form line chart */
+  .trend-wrap { position: relative; }
+  .trend-wrap svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; }
+  .trend-legend { display: flex; gap: 14px; font-size: 0.75rem; color: var(--text-dim); margin-top: 6px; }
+  .trend-legend i {
+    display: inline-block;
+    width: 14px;
+    height: 0;
+    border-top: 2px solid var(--accent);
+    vertical-align: middle;
+    margin-right: 5px;
+  }
+  .trend-legend i.avg { border-top: 2px dashed var(--text-dim); }
+  .trend-tip {
+    position: absolute;
+    top: -6px;
+    transform: translate(-50%, -100%);
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 0.75rem;
+    padding: 5px 8px;
+    border-radius: 8px;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  }
+  .trend-tip[hidden] { display: none; }
+
+  /* Today's top 10 */
+  .board { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+  .board td { padding: 8px 4px; border-bottom: 1px solid var(--surface-2); }
+  .board td.rk { width: 2.2em; color: var(--text-dim); font-weight: 700; text-align: center; }
+  .board td.nm { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+  .board td.nm.anon { color: var(--text-dim); font-weight: 400; font-style: italic; }
+  .board td.sc { text-align: right; white-space: nowrap; color: var(--red); font-weight: 700; }
+  .board td.tm { text-align: right; white-space: nowrap; color: var(--text-dim); width: 4.2em; }
+  .board tr.me td { background: var(--surface-2); }
+  .board tr.me td:first-child { border-radius: 8px 0 0 8px; }
+  .board tr.me td:last-child { border-radius: 0 8px 8px 0; }
+  .board-foot { color: var(--text-dim); font-size: 0.8rem; text-align: center; margin-top: 12px; }
+  .board-me { text-align: center; color: var(--text); font-weight: 600; margin-top: 12px; }
+
   /* ---------- Falling leaves (win screen, fall season only) ----------
      A handful of leaves drift down over the victory modal. Each leaf
      gets its own start column, size, duration, delay and sway via
@@ -721,6 +940,7 @@ var WORDFLOW_SEASON = (function () {
 
   <header>
     <h1 class="logo">WordFlow</h1>
+    <button id="stats-btn" aria-label="Your stats and today's top 10">📊</button>
   </header>
 
   <div class="puzzle-meta" id="puzzle-meta"><!-- "Puzzle #N — date" injected by JS --></div>
@@ -776,6 +996,7 @@ var WORDFLOW_SEASON = (function () {
            stats database; stays empty (and invisible) if unreachable -->
       <div id="avg-strikes" class="avg-strikes"></div>
       <button id="start-btn">▶ START</button>
+      <button id="intro-stats-btn">📊 Your stats · 🏆 Today's top 10</button>
     </div>
   </div>
 
@@ -789,8 +1010,27 @@ var WORDFLOW_SEASON = (function () {
       <!-- How this run compares to today's global average; filled in
            async, stays empty (and collapsed) if stats are unreachable -->
       <div class="vs-average" id="vs-average"></div>
+      <!-- Filled in async from the leaderboard and local history; each
+           line stays empty (and hidden) until it has data -->
+      <div class="win-line" id="win-percentile"></div>
+      <div class="win-line gold" id="win-streak"></div>
+      <div class="rank-box" id="rank-box"></div>
       <button id="share-btn">📤 Share Result</button>
+      <button id="open-stats-win">📊 Stats &amp; Top 10</button>
       <button id="close-modal">Close</button>
+    </div>
+  </div>
+
+  <!-- STATS & TOP 10 -->
+  <div id="stats-overlay">
+    <div id="stats-card" role="dialog" aria-modal="true" aria-label="Stats and leaderboard">
+      <button id="stats-close" aria-label="Close">✕</button>
+      <div class="tabs" role="tablist">
+        <button class="tab active" role="tab" data-tab="mine" aria-selected="true">📊 Your stats</button>
+        <button class="tab" role="tab" data-tab="board" aria-selected="false">🏆 Top 10</button>
+      </div>
+      <div class="tab-panel" id="panel-mine" role="tabpanel"></div>
+      <div class="tab-panel" id="panel-board" role="tabpanel" hidden></div>
     </div>
   </div>
 
@@ -1133,7 +1373,11 @@ let state = {
   sig: puzzle.chain.join("-"),  // identifies WHICH chain this state belongs to
   hints: 0,
   words: {},        // { chainIndex: { solved, hintLetters } }
-  completed: false
+  completed: false,
+  reported: false,  // today's result added to the /daily counters
+  scoreSent: false, // today's result written to the leaderboard
+  startedAt: null,  // wall-clock ms when START was first pressed
+  secs: null        // whole seconds from START to the final word
 };
 
 /* Indices of the hidden words — everything except the first word,
@@ -1158,6 +1402,12 @@ function loadState() {
     // Merge defensively in case the chain shape changed.
     state.hints = saved.hints || 0;
     state.completed = !!saved.completed;
+    // These were once saved but never read back, so every reload of a
+    // finished game re-reported it and inflated the /daily counters.
+    state.reported = !!saved.reported;
+    state.scoreSent = !!saved.scoreSent;
+    state.startedAt = typeof saved.startedAt === "number" ? saved.startedAt : null;
+    state.secs = Number.isInteger(saved.secs) ? saved.secs : null;
     hiddenIndices.forEach(i => {
       if (saved.words && saved.words[i]) {
         state.words[i].solved = !!saved.words[i].solved;
@@ -1298,6 +1548,7 @@ function focusFirstUnsolved() {
    they still flow through the ghostInput input path below. */
 document.addEventListener("keydown", (e) => {
   if (state.completed || focusedIndex === null) return;
+  if (statsOpen) return;                            // stats screen is on top
   if (rejectingIndex !== null) return;              // frozen during shake
   if (e.metaKey || e.ctrlKey || e.altKey) return;   // leave shortcuts alone
   if (e.key === "Backspace") {
@@ -1426,11 +1677,19 @@ function checkWin() {
   if (!allSolved) return;
 
   state.completed = true;
+  // Solve time is wall clock from the first START press, so reloading
+  // to reread the intro (which pauses the 15-second clock) still
+  // counts. It only breaks ties on the leaderboard.
+  if (state.startedAt && state.secs === null) {
+    state.secs = Math.max(1, Math.round((Date.now() - state.startedAt) / 1000));
+  }
   focusedIndex = null;
   saveState();
   refreshAllRows();
   stopTimer();    // victory: the clock stops for good
+  winNotes = recordToday();   // personal history (local only)
   reportResult(); // add this game to today's global stats
+  submitScore().then(loadBoard);   // leaderboard + percentile
   document.getElementById("hint-btn").disabled = true;
 
   // Small delay so the final flip animation finishes first.
@@ -1588,6 +1847,7 @@ const STATS_DB = "https://wordflow-30aa2-default-rtdb.firebaseio.com";
    player's own result is reported, so it is the field they were
    actually playing against. */
 let dailyAverage = null;
+let dailyAverageIsReal = false;   // false when it is yesterday's + 2
 
 /** Adds this player's finished game to today's global counters.
     The state.reported flag (persisted) guarantees one report per
@@ -1614,6 +1874,7 @@ async function loadAverageStrikes() {
     const today = await (await fetch(`${STATS_DB}/daily/${todayKey}.json`)).json();
     if (today && today.players > 0) {
       dailyAverage = today.strikes / today.players;
+      dailyAverageIsReal = true;
       el.textContent = `Today's average: ${dailyAverage.toFixed(1)} strikes ✖`;
       fillAverageComparison();   // modal may already be open (returning winner)
       return;
@@ -1632,6 +1893,617 @@ async function loadAverageStrikes() {
 }
 
 /* ==============================================================
+   7c. PERSONAL HISTORY (localStorage, key `wordflow-history`)
+   --------------------------------------------------------------
+   One small record per finished day, kept on this device:
+     { "2026-11-03": { n: 109, s: 4, t: 212, a: 5.2, p: 82, r: 3 } }
+   n puzzle number, s strikes, t solve seconds, a that day's global
+   average, p percentile (share of the day's field this player
+   beat), r best leaderboard rank seen that day (top 10 only).
+   Only n and s are guaranteed. No account and no server: this is
+   what the "Your stats" tab is built from, and it works offline.
+   History starts on the day it shipped; earlier days were never
+   recorded anywhere.
+   ============================================================== */
+const HISTORY_KEY = "wordflow-history";
+
+function loadHistory() {
+  try {
+    const h = JSON.parse(localStorage.getItem(HISTORY_KEY));
+    return h && typeof h === "object" && !Array.isArray(h) ? h : {};
+  } catch (e) { return {}; }
+}
+
+function saveHistory(h) {
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); }
+  catch (e) { /* storage unavailable: stats just won't persist */ }
+}
+
+/** The finished days in a history, oldest first. */
+function historyDays(h) {
+  return Object.keys(h)
+    .filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && h[k] && Number.isInteger(h[k].s))
+    .sort();
+}
+
+/** Writes today's finished game into the history, merging `extra`
+    fields, and returns the win-screen notes. Idempotent, so it is
+    safe on every reload of a finished game. */
+function recordToday(extra = {}) {
+  if (!state.completed) return null;
+  const h = loadHistory();
+  const entry = Object.assign(h[todayKey] || {}, { n: puzzle.number, s: state.hints });
+  if (state.secs) entry.t = state.secs;
+  Object.assign(entry, extra);
+  h[todayKey] = entry;
+  saveHistory(h);
+  const earlier = historyDays(h).filter(k => k !== todayKey).map(k => h[k].s);
+  return {
+    streak: computeStats(h).streak,
+    personalBest: earlier.length > 0 && state.hints < Math.min(...earlier)
+  };
+}
+
+function computeStats(h) {
+  const days = historyDays(h);
+  const strikes = days.map(k => h[k].s);
+  let run = 0, maxStreak = 0, prev = null;
+  days.forEach(k => {
+    run = (prev && daysBetween(prev, k) === 1) ? run + 1 : 1;
+    maxStreak = Math.max(maxStreak, run);
+    prev = k;
+  });
+  // A streak is still alive if the last finished game was today or
+  // yesterday (today's puzzle may simply not be played yet).
+  const streak = prev && daysBetween(prev, todayKey) <= 1 ? run : 0;
+  const dist = new Array(11).fill(0);           // 0..9 strikes, then 10+
+  strikes.forEach(s => dist[Math.min(s, 10)]++);
+  return {
+    days,
+    played: days.length,
+    avg: days.length ? strikes.reduce((x, y) => x + y, 0) / days.length : null,
+    best: days.length ? Math.min(...strikes) : null,
+    streak,
+    maxStreak,
+    dist,
+    top10: days.filter(k => h[k].r >= 1 && h[k].r <= 10).length
+  };
+}
+
+/** 212 → "3:32", 4000 → "1:06:40" */
+function fmtTime(sec) {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+  const ss = String(sec % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
+}
+
+/** Tiny DOM helper. Text always goes in via textContent, never as
+    HTML, because leaderboard names are typed by other players. */
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+
+/* ==============================================================
+   7d. NAME FILTER
+   --------------------------------------------------------------
+   Leaderboard names: 2 to 12 characters, letters, numbers and
+   single spaces. Digits are read as the letters they imitate
+   (0→o, 1→i, 3→e, 4→a, 5→s, 7→t, 8→b, 9→g) and each letter of a
+   listed word may repeat, so "FUUUCK" and "5H1T" are both caught.
+
+   NAME_BLOCK_STRONG is matched ANYWHERE, spaces ignored. It is also
+   compiled into the Firebase security rules, so a name that skips
+   this page still gets refused (regenerate the rules with
+   marketing/tools/build_firebase_rules.js after editing the list).
+   NAME_BLOCK_WORD is matched only as a whole word (or the whole
+   name), because these hide inside innocent names: Cassandra,
+   Hancock, Dickens, Sussex, Grape. Spell entries with single
+   letters where the doubled spelling should also be caught.
+   ============================================================== */
+const NAME_BLOCK_STRONG = ["fuck", "fuk", "phuck", "shit", "cunt", "nigg", "fagot",
+  "bitch", "biatch", "whore", "slut", "skank", "ashole", "arsehole", "bastard",
+  "dildo", "porn", "penis", "vagina", "pusy", "jiz", "cumshot", "blowjob",
+  "handjob", "rapist", "retard", "molest", "pedophil", "paedo", "incest", "hitler",
+  "wetback", "trany", "kkk", "cocksuck", "dumbas", "jackas", "milf", "scrotum",
+  "orgasm", "balsack", "nutsack", "bolock", "tity", "wordflow", "moderator"];
+const NAME_BLOCK_WORD = ["ass", "arse", "anal", "anus", "cock", "dick", "cum",
+  "sex", "sexy", "rape", "tit", "tits", "boob", "boobie", "clit", "prick", "piss",
+  "twat", "wank", "wanker", "spic", "chink", "kike", "gook", "coon", "negro", "dyke",
+  "fag", "homo", "nazi", "heil", "horny", "hoe", "slag", "semen", "sperm", "orgy",
+  "knob", "tosser", "boner", "wtf", "stfu", "admin", "mod"];
+
+const LEET = { "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b", "9": "g" };
+/** "ss" must appear at least twice, every other letter at least once. */
+const letterPattern = w => w.replace(/(.)\1*/g, run => run + "+");
+const STRONG_RE = new RegExp(NAME_BLOCK_STRONG.map(letterPattern).join("|"));
+const WORD_RE = new RegExp("^(" + NAME_BLOCK_WORD.map(letterPattern).join("|") + ")(e?s+)?$");
+
+/** Null if the name is fine, otherwise the message to show. */
+function nameProblem(name) {
+  if (name.length < 2 || name.length > 12) return "Use 2 to 12 characters.";
+  if (!/^[A-Za-z0-9][A-Za-z0-9 ]*[A-Za-z0-9]$/.test(name) || name.includes("  ")) {
+    return "Letters, numbers and spaces only.";
+  }
+  const flat = name.toLowerCase().replace(/[0-9]/g, d => LEET[d]);
+  const squashed = flat.replace(/ /g, "");
+  if (STRONG_RE.test(squashed) || WORD_RE.test(squashed) ||
+      flat.split(" ").some(w => WORD_RE.test(w))) {
+    return "Please pick a different name.";
+  }
+  return null;
+}
+
+/* ==============================================================
+   7e. DAILY TOP 10 (Firebase RTDB + Anonymous Auth, REST, no SDK)
+   --------------------------------------------------------------
+   Every finisher writes one score, and a top-10 finisher may add
+   a display name:
+     /scores/<date>/<uid> = { s: strikes, t: seconds, at: server ms }
+     /names/<date>/<uid>  = "Mark"
+   <uid> comes from Firebase Anonymous Auth: an invisible identity
+   per browser, with no sign-in screen. The security rules (source
+   in marketing/tools, see GDD §4) allow one score per uid per day,
+   stamp `at` with the server clock, let only that uid write its
+   own name, and re-check names against NAME_BLOCK_STRONG.
+
+   Ranking: fewest strikes, then fastest time, then earliest finish.
+   The day's scores are read in one go (about 60 bytes each), which
+   gives both the board and every player's percentile. Entries whose
+   server timestamp is not today (Eastern) are ignored, so nobody
+   can pre-fill tomorrow's board. The total number of players is
+   never shown: no counts, no rank below 10th, and no percentile
+   until at least 5 people have finished.
+
+   With FIREBASE_API_KEY empty the whole feature stays dark: no
+   auth calls, no Top 10 tab, no leaderboard lines on the win screen.
+   ============================================================== */
+const FIREBASE_API_KEY = "AIzaSyASDiniUkQy9vQ1nwN20B8rvStTPLbgVHc";   // Web API key: public by design, rules do the guarding
+const AUTH_STORE = "wordflow-auth";
+const NAME_STORE = "wordflow-name";
+const PERCENTILE_MIN_PLAYERS = 5;
+
+let authInFlight = null;
+let boardData = null;        // last good read: { top, me, rank, pct }
+let boardStatus = "idle";    // idle | loading | ok | error
+let editingName = false;     // "Change" was tapped on a saved name
+let winNotes = null;         // { streak, personalBest } from recordToday()
+let autoNameTried = false;   // remembered name already offered today
+
+function storedAuth() {
+  try { return JSON.parse(localStorage.getItem(AUTH_STORE)); } catch (e) { return null; }
+}
+function rememberedName() {
+  try { return localStorage.getItem(NAME_STORE) || ""; } catch (e) { return ""; }
+}
+
+/** Resolves to { uid, id } holding a fresh ID token, or null when
+    offline or disabled. Concurrent callers share one request. */
+function getAuth() {
+  if (!FIREBASE_API_KEY) return Promise.resolve(null);
+  if (!authInFlight) authInFlight = refreshAuth().finally(() => { authInFlight = null; });
+  return authInFlight;
+}
+
+async function refreshAuth() {
+  let a = storedAuth();
+  if (a && a.id && a.exp > Date.now() + 60000) return a;
+  try {
+    let res, j;
+    if (a && a.refresh) {
+      res = await fetch(`https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(a.refresh)
+      });
+      if (res.ok) {
+        j = await res.json();
+        a = { uid: j.user_id, id: j.id_token, refresh: j.refresh_token,
+              exp: Date.now() + j.expires_in * 1000 };
+      } else if (res.status === 400) {
+        a = null;      // revoked or garbled token: take a new identity
+      } else {
+        return null;   // server trouble: keep the identity, try later
+      }
+    } else {
+      a = null;
+    }
+    if (!a) {
+      res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnSecureToken: true })
+      });
+      if (!res.ok) return null;
+      j = await res.json();
+      a = { uid: j.localId, id: j.idToken, refresh: j.refreshToken,
+            exp: Date.now() + j.expiresIn * 1000 };
+    }
+    try { localStorage.setItem(AUTH_STORE, JSON.stringify(a)); } catch (e) { /* ok */ }
+    return a;
+  } catch (e) { return null; }
+}
+
+/** Writes today's result to the leaderboard, once. Needs a solve
+    time, so a game started before timing existed is left off. */
+async function submitScore() {
+  if (!state.completed || state.scoreSent || !state.secs) return;
+  const a = await getAuth();
+  if (!a) return;
+  try {
+    const res = await fetch(`${STATS_DB}/scores/${todayKey}/${a.uid}.json?auth=${a.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ s: state.hints, t: state.secs, at: { ".sv": "timestamp" } })
+    });
+    if (res.ok) { state.scoreSent = true; saveState(); }
+  } catch (e) { /* offline: retried on the next visit */ }
+}
+
+const easternDayFmt = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit"
+});
+
+/** Reads today's scores and names, ranks them, and refreshes every
+    place that shows the board. */
+async function loadBoard() {
+  if (!FIREBASE_API_KEY) return;
+  if (!boardData) boardStatus = "loading";
+  if (statsOpen) renderBoardPanel();
+  try {
+    const [scores, names] = await Promise.all([
+      fetch(`${STATS_DB}/scores/${todayKey}.json`).then(r => r.ok ? r.json() : Promise.reject(r)),
+      fetch(`${STATS_DB}/names/${todayKey}.json`).then(r => r.ok ? r.json() : null)
+    ]);
+    const uid = (storedAuth() || {}).uid;
+    const list = Object.entries(scores || {})
+      .filter(([, v]) => v && Number.isInteger(v.s) && Number.isInteger(v.t) &&
+                         typeof v.at === "number" &&
+                         easternDayFmt.format(new Date(v.at)) === todayKey)
+      .map(([id, v]) => {
+        let name = names && typeof names[id] === "string" ? names[id] : null;
+        if (name && nameProblem(name)) name = null;   // belt and braces
+        return { id, s: v.s, t: v.t, at: v.at, name };
+      })
+      .sort((x, y) => x.s - y.s || x.t - y.t || x.at - y.at);
+
+    const i = uid ? list.findIndex(e => e.id === uid) : -1;
+    const me = i >= 0 ? list[i] : null;
+    let pct = null;
+    if (me && list.length >= PERCENTILE_MIN_PLAYERS) {
+      const beaten = list.filter(e => e.s > me.s || (e.s === me.s && e.t > me.t)).length;
+      pct = Math.floor(100 * beaten / (list.length - 1));
+    }
+    boardData = { top: list.slice(0, 10), me, rank: me ? i + 1 : null, pct };
+    boardStatus = "ok";
+
+    if (me) {
+      if (!state.scoreSent) { state.scoreSent = true; saveState(); }
+      const prev = loadHistory()[todayKey] || {};
+      const extra = {};
+      if (pct !== null) extra.p = pct;
+      if (boardData.rank <= 10 && !(prev.r <= boardData.rank)) extra.r = boardData.rank;
+      recordToday(extra);
+    }
+  } catch (e) {
+    if (!boardData) boardStatus = "error";
+  }
+  refreshBoardUI();
+}
+
+/** Saves a leaderboard name. Resolves to null, or an error message. */
+async function saveName(raw) {
+  const name = String(raw).trim().replace(/\s+/g, " ");
+  const problem = nameProblem(name);
+  if (problem) return problem;
+  const a = await getAuth();
+  if (!a) return "Couldn't reach the leaderboard. Try again.";
+  try {
+    const res = await fetch(`${STATS_DB}/names/${todayKey}/${a.uid}.json?auth=${a.id}`, {
+      method: "PUT",
+      body: JSON.stringify(name)
+    });
+    if (!res.ok) return "Please pick a different name.";
+  } catch (e) {
+    return "Couldn't reach the leaderboard. Try again.";
+  }
+  try { localStorage.setItem(NAME_STORE, name); } catch (e) { /* ok */ }
+  if (boardData && boardData.me) boardData.me.name = name;   // same object as its top-10 row
+  return null;
+}
+
+function refreshBoardUI() {
+  fillBoardLines();
+  if (statsOpen) renderBoardPanel();
+}
+
+/** Win-screen percentile line and rank box. */
+function fillBoardLines() {
+  const b = boardData;
+  document.getElementById("win-percentile").textContent =
+    b && b.pct !== null && b.pct >= 1 ? `You beat ${b.pct}% of players so far today` : "";
+  fillRankBox(document.getElementById("rank-box"));
+}
+
+/** "You're #3 on today's top 10!" plus the name form, or the saved
+    name with a Change link. Empty unless this player is top 10. */
+function fillRankBox(box) {
+  box.textContent = "";
+  const b = boardData;
+  if (!b || !b.rank || b.rank > 10) return;
+  box.append(el("div", "rank-title", `🏆 You're #${b.rank} on today's top 10!`));
+
+  if (b.me.name && !editingName) {
+    const line = el("div", "name-saved", "Listed as ");
+    line.append(el("b", null, b.me.name), " ");
+    const change = el("button", "link-btn", "Change");
+    change.type = "button";
+    change.addEventListener("click", () => {
+      editingName = true;
+      refreshBoardUI();
+      // Both boxes were rebuilt; focus the one the player is looking at.
+      const input = document.querySelector(statsOpen ? "#rank-box-board input" : "#rank-box input");
+      if (input) { input.focus(); input.select(); }
+    });
+    line.append(change);
+    box.append(line);
+    return;
+  }
+
+  // A returning player's name from an earlier day goes up on its own.
+  const remembered = rememberedName();
+  if (!b.me.name && remembered && !autoNameTried) {
+    autoNameTried = true;
+    saveName(remembered).then(err => { if (!err) refreshBoardUI(); });
+  }
+
+  const form = el("form", "name-form");
+  const input = el("input");
+  input.maxLength = 12;
+  input.placeholder = "Your name";
+  input.autocomplete = "nickname";
+  input.enterKeyHint = "done";
+  input.setAttribute("aria-label", "Your name for the leaderboard");
+  input.value = b.me.name || remembered;
+  const save = el("button", null, "Save");
+  save.type = "submit";
+  form.append(input, save);
+  const err = el("div", "name-error");
+  form.addEventListener("submit", async ev => {
+    ev.preventDefault();
+    save.disabled = true;
+    err.textContent = "";
+    const problem = await saveName(input.value);
+    save.disabled = false;
+    if (problem) { err.textContent = problem; return; }
+    editingName = false;
+    refreshBoardUI();
+  });
+  box.append(form, err);
+}
+
+/* ==============================================================
+   7f. STATS & TOP 10 SCREEN
+   ============================================================== */
+const statsOverlay = document.getElementById("stats-overlay");
+let statsOpen = false;
+let statsTab = "mine";
+
+function setStatsTab(tab) {
+  statsTab = tab;
+  document.querySelectorAll("#stats-card .tab").forEach(t => {
+    const on = t.dataset.tab === tab;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on);
+  });
+  document.getElementById("panel-mine").hidden = tab !== "mine";
+  document.getElementById("panel-board").hidden = tab !== "board";
+}
+
+function openStats(tab) {
+  statsOpen = true;
+  setStatsTab(FIREBASE_API_KEY ? (tab || statsTab) : "mine");
+  renderMinePanel();
+  renderBoardPanel();
+  statsOverlay.classList.add("visible");
+  ghostInput.blur();   // keep keystrokes out of the game behind
+  loadBoard();         // the board moves all day: always refresh
+}
+
+function closeStats() {
+  statsOpen = false;
+  statsOverlay.classList.remove("visible");
+  if (!state.completed && focusedIndex !== null) ghostInput.focus();
+}
+
+function renderMinePanel() {
+  const p = document.getElementById("panel-mine");
+  p.textContent = "";
+  const h = loadHistory();
+  const st = computeStats(h);
+  if (!st.played) {
+    p.append(el("div", "empty-note",
+      "Finish a puzzle to start your stats. They're saved on this device, no account needed."));
+    return;
+  }
+
+  const grid = el("div", "stat-grid");
+  [[st.played, "Played"], [st.avg.toFixed(1), "Avg strikes"],
+   [st.streak, "Streak 🔥"], [st.maxStreak, "Best streak"]].forEach(([v, label]) => {
+    const cell = el("div");
+    cell.append(el("div", "stat-num", v), el("div", "stat-label", label));
+    grid.append(cell);
+  });
+  p.append(grid);
+
+  const note = el("div", "stat-note", "Personal best: ");
+  note.append(el("b", null, `${st.best} strike${st.best === 1 ? "" : "s"}`));
+  if (st.top10) {
+    note.append(" · Top-10 finishes: ");
+    note.append(el("b", null, st.top10));
+  }
+  p.append(note);
+
+  // Strike distribution. One series, so no legend; today is the
+  // highlighted column.
+  p.append(el("div", "section-title", "Strike distribution"));
+  p.append(el("div", "section-sub", "How many games you finished with each strike count"));
+  const todayBucket = h[todayKey] ? Math.min(h[todayKey].s, 10) : -1;
+  const peak = Math.max(...st.dist, 1);
+  const dist = el("div", "dist");
+  const labels = el("div", "dist-labels");
+  st.dist.forEach((count, i) => {
+    const col = el("div", "dist-col" + (i === todayBucket ? " today" : ""));
+    const bar = el("div", "dist-bar");
+    bar.style.height = count ? `${Math.max(4, Math.round(84 * count / peak))}px` : "0";
+    col.append(el("div", "dist-count", count || ""), bar);
+    col.title = `${count} game${count === 1 ? "" : "s"} with ${i === 10 ? "10 or more" : i} strike${i === 1 ? "" : "s"}`;
+    dist.append(col);
+    labels.append(el("span", null, i === 10 ? "10+" : i));
+  });
+  p.append(dist, labels);
+
+  if (st.played >= 2) {
+    p.append(el("div", "section-title", "Recent form"));
+    p.append(el("div", "section-sub", "Strikes in your last 30 games. Lower is better."));
+    p.append(buildTrend(h, st.days.slice(-30)));
+  }
+
+  p.append(el("div", "board-foot", "Saved on this device. Clearing your browser data resets it."));
+}
+
+/** Line chart: your strikes per game, against that day's average.
+    One shared y axis; tap or hover a game for its numbers. */
+function buildTrend(h, days) {
+  const pts = days.map(k => ({ n: h[k].n, s: h[k].s, a: typeof h[k].a === "number" ? h[k].a : null }));
+  const W = 320, H = 130, L = 22, R = 10, T = 10, B = 20;
+  const top = Math.max(4, Math.ceil(Math.max(...pts.map(q => Math.max(q.s, q.a || 0))) / 2) * 2);
+  const x = i => L + (pts.length === 1 ? (W - L - R) / 2 : i * (W - L - R) / (pts.length - 1));
+  const y = v => T + (H - T - B) * (1 - v / top);
+
+  let grid = "";
+  [0, top / 2, top].forEach(v => {
+    grid += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" style="stroke:var(--surface-2);stroke-width:1"/>` +
+            `<text x="${L - 6}" y="${y(v) + 3.5}" text-anchor="end" style="fill:var(--text-dim);font-size:10px">${v}</text>`;
+  });
+  const xLabel = (i, anchor) =>
+    `<text x="${x(i)}" y="${H - 4}" text-anchor="${anchor}" style="fill:var(--text-dim);font-size:10px">#${pts[i].n}</text>`;
+  const labels = xLabel(0, pts.length === 1 ? "middle" : "start") +
+                 (pts.length > 1 ? xLabel(pts.length - 1, "end") : "");
+
+  // The average line breaks wherever a day's average is unknown.
+  let avgPath = "", pen = false;
+  pts.forEach((q, i) => {
+    if (q.a === null) { pen = false; return; }
+    avgPath += `${pen ? "L" : "M"}${x(i).toFixed(1)},${y(q.a).toFixed(1)}`;
+    pen = true;
+  });
+  const youPath = pts.map((q, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(q.s).toFixed(1)}`).join("");
+  const last = pts.length - 1;
+
+  const wrap = el("div", "trend-wrap");
+  wrap.innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Your strikes over your last ${pts.length} games">` +
+      grid + labels +
+      (avgPath ? `<path d="${avgPath}" style="fill:none;stroke:var(--text-dim);stroke-width:2;stroke-dasharray:4 4"/>` : "") +
+      `<path d="${youPath}" style="fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;stroke-linecap:round"/>` +
+      `<line class="cross" y1="${T}" y2="${H - B}" style="stroke:var(--text-dim);stroke-width:1;display:none"/>` +
+      `<circle class="dot" r="4" cx="${x(last)}" cy="${y(pts[last].s)}" style="fill:var(--accent);stroke:var(--surface);stroke-width:2"/>` +
+      `<rect x="0" y="0" width="${W}" height="${H}" style="fill:transparent"/>` +
+    `</svg>`;
+  const tip = el("div", "trend-tip");
+  tip.hidden = true;
+  wrap.append(tip);
+
+  const legend = el("div", "trend-legend");
+  const you = el("span"); you.append(el("i"), "You");
+  legend.append(you);
+  if (avgPath) { const avg = el("span"); avg.append(el("i", "avg"), "Daily average"); legend.append(avg); }
+
+  const svg = wrap.querySelector("svg");
+  const cross = svg.querySelector(".cross");
+  const dot = svg.querySelector(".dot");
+  const show = ev => {
+    const box = svg.getBoundingClientRect();
+    const sx = (ev.clientX - box.left) * W / box.width;
+    let i = 0;
+    pts.forEach((_, j) => { if (Math.abs(x(j) - sx) < Math.abs(x(i) - sx)) i = j; });
+    const q = pts[i];
+    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i));
+    cross.style.display = "";
+    dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(q.s));
+    tip.textContent = `#${q.n} · You ${q.s}` + (q.a !== null ? ` · Avg ${q.a.toFixed(1)}` : "");
+    tip.style.left = `${Math.min(Math.max(x(i) * box.width / W, 60), box.width - 60)}px`;
+    tip.hidden = false;
+  };
+  const hide = () => {
+    cross.style.display = "none";
+    dot.setAttribute("cx", x(last)); dot.setAttribute("cy", y(pts[last].s));
+    tip.hidden = true;
+  };
+  svg.addEventListener("pointermove", show);
+  svg.addEventListener("pointerdown", show);
+  svg.addEventListener("pointerleave", hide);
+
+  const frag = document.createDocumentFragment();
+  frag.append(wrap, legend);
+  return frag;
+}
+
+function renderBoardPanel() {
+  const p = document.getElementById("panel-board");
+  p.textContent = "";
+  const b = boardData;
+  if (!b) {
+    p.append(el("div", "empty-note", boardStatus === "error"
+      ? "Couldn't load the leaderboard. Check your connection and try again."
+      : "Loading today's top 10…"));
+    return;
+  }
+  if (!b.top.length) {
+    p.append(el("div", "empty-note", "Nobody has finished today's puzzle yet. Be the first!"));
+  } else {
+    const table = el("table", "board");
+    b.top.forEach((e, i) => {
+      const mine = b.me && e.id === b.me.id;
+      const tr = el("tr", mine ? "me" : null);
+      const label = e.name || (mine ? "You" : "Anonymous");
+      tr.append(el("td", "rk", i + 1),
+                el("td", "nm" + (e.name ? "" : " anon"), label),
+                el("td", "sc", `${e.s} ✖`),
+                el("td", "tm", fmtTime(e.t)));
+      table.append(tr);
+    });
+    p.append(table);
+  }
+
+  if (b.me && b.rank <= 10) {
+    const box = el("div", "rank-box");
+    box.id = "rank-box-board";
+    box.style.margin = "14px 0 0";
+    fillRankBox(box);
+    p.append(box);
+  } else if (b.me && b.pct !== null && b.pct >= 1) {
+    p.append(el("div", "board-me", `You beat ${b.pct}% of players so far today`));
+  } else if (!state.completed) {
+    p.append(el("div", "board-me", "Finish today's puzzle to see where you stand."));
+  }
+  p.append(el("div", "board-foot", "Fewest strikes wins, fastest time breaks ties. Resets at midnight ET."));
+}
+
+document.getElementById("stats-btn").addEventListener("click", () => openStats());
+document.getElementById("intro-stats-btn").addEventListener("click", () => openStats());
+document.getElementById("open-stats-win").addEventListener("click", () =>
+  openStats(boardData && boardData.rank <= 10 ? "board" : undefined));
+document.getElementById("stats-close").addEventListener("click", closeStats);
+statsOverlay.addEventListener("click", e => { if (e.target === statsOverlay) closeStats(); });
+document.addEventListener("keydown", e => { if (statsOpen && e.key === "Escape") closeStats(); });
+document.querySelectorAll("#stats-card .tab").forEach(t =>
+  t.addEventListener("click", () => setStatsTab(t.dataset.tab)));
+if (!FIREBASE_API_KEY) document.querySelector('#stats-card .tab[data-tab="board"]').hidden = true;
+
+/* ==============================================================
    8. VICTORY MODAL & SHARE
    ============================================================== */
 const overlay = document.getElementById("modal-overlay");
@@ -1642,6 +2514,10 @@ const overlay = document.getElementById("modal-overlay");
     modal on page load, possibly before the stats fetch resolves. */
 function fillAverageComparison() {
   if (dailyAverage === null) return;   // no stats: leave the line empty
+  // Keep the day's average in local history for the trend chart.
+  if (state.completed && dailyAverageIsReal) {
+    recordToday({ a: Math.round(dailyAverage * 10) / 10 });
+  }
   const el = document.getElementById("vs-average");
   const diff = dailyAverage - state.hints;   // positive = under the average
   const mag = Math.abs(diff).toFixed(1);
@@ -1652,9 +2528,19 @@ function fillAverageComparison() {
                     "Right on today's average";
 }
 
+/** "⭐ New personal best!  ·  🔥 5-day streak" */
+function fillWinNotes() {
+  const parts = [];
+  if (winNotes && winNotes.personalBest) parts.push("⭐ New personal best!");
+  if (winNotes && winNotes.streak >= 2) parts.push(`🔥 ${winNotes.streak}-day streak`);
+  document.getElementById("win-streak").textContent = parts.join("  ·  ");
+}
+
 function showVictoryModal() {
   document.getElementById("final-hints").textContent = state.hints;
   fillAverageComparison();
+  fillWinNotes();
+  fillBoardLines();
   overlay.classList.add("visible");
   if (WORDFLOW_SEASON === "fall") dropLeaves();
 }
@@ -1782,12 +2668,15 @@ if (state.completed) {
   closeIntro();
   reportResult();   // backfill: wins from before stats existed still count
   document.getElementById("hint-btn").disabled = true;
+  winNotes = recordToday();   // backfill: a win from before history existed
+  submitScore().then(loadBoard);
   showVictoryModal();
 } else {
   // The intro screen is up. NOTHING runs — no timer, no focused row —
   // until the player presses START, so the instructions can be read
   // without pressure.
   startBtn.addEventListener("click", () => {
+    if (!state.startedAt) { state.startedAt = Date.now(); saveState(); }
     closeIntro();
     focusFirstUnsolved();
     resetTimer();   // the 15-second clock starts NOW
