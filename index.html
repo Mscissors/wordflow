@@ -2255,6 +2255,66 @@ const easternDayFmt = new Intl.DateTimeFormat("en-CA", {
 
 /** Reads today's scores and names, ranks them, and refreshes every
     place that shows the board. */
+/* ---------- House entries ----------
+   An empty board looks dead to the first players of the day, so from
+   2am Eastern the board is topped up to 10 with made-up players with
+   easy-to-beat games (5 to 10 strikes, 3 to 12 minutes). They exist
+   only here in the page, never in Firebase. Every device builds the
+   same ten for a given date (seeded by the date), and they only fill
+   EMPTY spots: with n real finishers the board shows the best 10 - n
+   house entries, so a real player is never pushed off by one,
+   including anyone who finished between midnight and 2am. Once 10
+   real players have finished, none are left. They're left out of
+   the percentile, which stays real players only. */
+const HOUSE_HOUR = 2;   // Eastern hour the house entries appear
+const HOUSE_NAMES = [
+  "Maggie", "dtran", "Leo K", "BookWorm", "Priya", "jmart88", "Sully", "Rosie T",
+  "Ben W", "nora", "Kwame", "Lulu", "Tess", "Jake R", "mike d", "Hannah B",
+  "Owen", "Dee", "Marco", "Ivy", "Coach K", "Sam P", "Gigi", "Ray",
+  "Annie", "zach", "Lena", "Pete", "carmen", "Will S", "Bea", "Theo",
+  "Jules", "Hank", "Mona", "Abby", "Raj", "Kim L", "Frankie", "Ellie",
+  "Grandpa Joe", "Wordnerd", "Tina", "Danny", "Rob", "Noor", "Miles", "June",
+  "Gus", "Carla", "Vic", "Meg", "PuzzleMom", "Ted", "Rita", "Nate",
+  "Lou", "Kelsey", "Bob", "Sofia", "Eli", "Fran", "Joey", "Mia",
+  "Hal", "Rose", "Lin", "Cal", "Dot", "Ana"
+];
+
+/** True once the house entries for todayKey should be on the board. */
+function houseOpen() {
+  const now = getEasternDateKey();
+  if (now !== todayKey) return now > todayKey;   // page left open past midnight
+  const hour = +new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", hour: "numeric", hourCycle: "h23"
+  }).format(new Date());
+  return hour >= HOUSE_HOUR;
+}
+
+/** The day's ten house entries, best first. Same on every device. */
+function houseEntries(dateKey) {
+  let seed = 0;
+  for (const c of dateKey) seed = (Math.imul(seed, 31) + c.charCodeAt(0)) | 0;
+  const rand = () => {   // mulberry32
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const pool = HOUSE_NAMES.slice();
+  const at = Date.parse(`${dateKey}T06:00:00Z`);   // about 2am Eastern
+  const out = [];
+  for (let k = 0; k < 10; k++) {
+    const name = pool.splice(Math.floor(rand() * pool.length), 1)[0];
+    out.push({ id: `house-${k}`, house: true, name,
+               s: 5 + Math.floor(rand() * 6),            // 5..10 strikes
+               t: 180 + Math.floor(rand() * 540),        // 3..12 minutes
+               at: at + k });
+  }
+  return out.sort(byScore);
+}
+
+/** Leaderboard order: fewest strikes, then fastest, then earliest. */
+function byScore(x, y) { return x.s - y.s || x.t - y.t || x.at - y.at; }
+
 async function loadBoard() {
   if (!FIREBASE_API_KEY) return;
   if (!boardData) boardStatus = "loading";
@@ -2274,16 +2334,21 @@ async function loadBoard() {
         if (name && nameProblem(name)) name = null;   // belt and braces
         return { id, s: v.s, t: v.t, at: v.at, name };
       })
-      .sort((x, y) => x.s - y.s || x.t - y.t || x.at - y.at);
+      .sort(byScore);
 
-    const i = uid ? list.findIndex(e => e.id === uid) : -1;
-    const me = i >= 0 ? list[i] : null;
+    // Top up empty spots with the best of the day's house entries.
+    const house = list.length < 10 && houseOpen()
+      ? houseEntries(todayKey).slice(0, 10 - list.length) : [];
+    const ranked = list.concat(house).sort(byScore);
+
+    const i = uid ? ranked.findIndex(e => e.id === uid) : -1;
+    const me = i >= 0 ? ranked[i] : null;
     let pct = null;
     if (me && list.length >= PERCENTILE_MIN_PLAYERS) {
       const beaten = list.filter(e => e.s > me.s || (e.s === me.s && e.t > me.t)).length;
       pct = Math.floor(100 * beaten / (list.length - 1));
     }
-    boardData = { top: list.slice(0, 10), me, rank: me ? i + 1 : null, pct };
+    boardData = { top: ranked.slice(0, 10), me, rank: me ? i + 1 : null, pct };
     boardStatus = "ok";
 
     if (me && !PAST_DAY) {   // in past mode, `state` is the past game's
