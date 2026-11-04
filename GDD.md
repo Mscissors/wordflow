@@ -70,7 +70,7 @@ Saves per-day progress: solved words, revealed-letter counts, strike total, comp
 
 ## 5. Visual Design
 
-- Dark theme. CSS custom properties in `:root` — key colors: background `#0f1117`, accent blue `#5b8cff`, accent purple `#7c5bff`, solved green `#35c47c`, strike red `#ff4757`, hint gold `#ffd166`.
+- Dark fall theme. CSS custom properties in `:root`, key colors: background `#17110d` (espresso), accent pumpkin `#f28c28`, accent maple `#c8402c`, solved moss green `#6f9a3c`, strike red `#d9412f`, hint gold `#f2b544`. The win screen drops a few falling leaves (`dropLeaves()`), skipped under reduced motion.
 - Tile states: **anchor** (dark, blue border/text), **given** (dark, blue border/text — the free first letter, styled identically to the anchor), **empty** (dark slate), **hinted** (gold, locked reveal), **typed** (player input, lighter border), **solved** (green). The intro demo board teaches these states visually.
 - Mobile-first, max content width 480px. Typing on mobile works via a hidden input (`#ghost-input`) that summons the keyboard; desktop uses direct keydown.
 - Animations: tile flip-in (`flipIn`, rotateX), row shake on wrong guess, strike-counter pop, timer pulse when low, START button breathing glow, modal fade/spring.

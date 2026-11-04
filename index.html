@@ -34,20 +34,21 @@
      theming trivial; transitions handle all reveal animations.
      ============================================================ */
   :root {
-    --bg: #0f1117;
-    --surface: #1a1d27;
-    --surface-2: #232736;
-    --tile-empty: #2a2f40;
-    --tile-border: #3a4056;
-    --tile-focus: #4a5578;
-    --text: #eef0f6;
-    --text-dim: #8b91a7;
-    --accent: #5b8cff;
-    --accent-2: #7c5bff;
-    --green: #35c47c;
-    --green-dark: #2a9d63;
-    --red: #ff4757;
-    --gold: #ffd166;
+    /* Fall palette: espresso browns, pumpkin, maple, moss, harvest gold */
+    --bg: #17110d;
+    --surface: #221913;
+    --surface-2: #2e231a;
+    --tile-empty: #352920;
+    --tile-border: #4d3b2c;
+    --tile-focus: #6e5440;
+    --text: #f7eee3;
+    --text-dim: #ab9a88;
+    --accent: #f28c28;
+    --accent-2: #c8402c;
+    --green: #6f9a3c;
+    --green-dark: #587c2f;
+    --red: #d9412f;
+    --gold: #f2b544;
     --radius: 12px;
     --tile-size: clamp(38px, 9vw, 52px);
     --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -124,7 +125,7 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    box-shadow: 0 4px 14px rgba(255, 71, 87, 0.45);
+    box-shadow: 0 4px 14px rgba(217, 65, 47, 0.45);
     transition: transform 0.18s ease;
     pointer-events: none;      /* never blocks taps on the row */
   }
@@ -316,12 +317,12 @@
     bottom: 8px;
     transform: translateX(-50%);
     display: none;             /* shown once docked to a row */
-    background: linear-gradient(135deg, var(--gold), #ffb347);
+    background: linear-gradient(135deg, var(--gold), #e8892b);
     color: #1a1a1a;
     font-size: 1.05rem;
     padding: 14px 34px;
     white-space: nowrap;
-    box-shadow: 0 4px 16px rgba(255, 209, 102, 0.35);
+    box-shadow: 0 4px 16px rgba(242, 181, 68, 0.35);
   }
   /* Narrow phones: a slightly smaller pill so it doesn't crowd short rows. */
   @media (max-width: 430px) {
@@ -486,8 +487,8 @@
 
   /* Soft breathing glow makes START feel pressable */
   @keyframes startPulse {
-    0%, 100% { box-shadow: 0 4px 16px rgba(91, 140, 255, 0.35); transform: scale(1); }
-    50%      { box-shadow: 0 6px 30px rgba(124, 91, 255, 0.6);  transform: scale(1.04); }
+    0%, 100% { box-shadow: 0 4px 16px rgba(242, 140, 40, 0.35); transform: scale(1); }
+    50%      { box-shadow: 0 6px 30px rgba(200, 64, 44, 0.6);   transform: scale(1.04); }
   }
   #start-btn {
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
@@ -501,7 +502,7 @@
   #modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(8, 10, 15, 0.75);
+    background: rgba(12, 8, 5, 0.75);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
@@ -579,6 +580,39 @@
     font-size: 0.85rem;
     margin-top: 12px;
     padding: 8px;
+  }
+
+  /* ---------- Falling leaves (win screen) ----------
+     A handful of leaves drift down over the victory modal. Each leaf
+     gets its own start column, size, duration, delay and sway via
+     CSS variables set in JS. Above the modal, never catches taps. */
+  .leaf {
+    position: fixed;
+    top: -60px;
+    left: var(--x);
+    font-size: var(--size);
+    z-index: 150;
+    pointer-events: none;
+    user-select: none;
+    animation: leafFall var(--dur) linear var(--delay) forwards;
+    opacity: 0;
+  }
+  .leaf span {
+    display: inline-block;
+    animation: leafSway calc(var(--dur) / 3) ease-in-out var(--delay) infinite alternate;
+  }
+  @keyframes leafFall {
+    0%   { opacity: 0;   transform: translateY(0) rotate(0deg); }
+    8%   { opacity: 1; }
+    85%  { opacity: 1; }
+    100% { opacity: 0;   transform: translateY(calc(100dvh + 120px)) rotate(var(--spin)); }
+  }
+  @keyframes leafSway {
+    from { transform: translateX(calc(var(--sway) * -1)) rotate(-18deg); }
+    to   { transform: translateX(var(--sway)) rotate(18deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .leaf { display: none; }
   }
 </style>
 </head>
@@ -1536,6 +1570,32 @@ function showVictoryModal() {
   document.getElementById("final-hints").textContent = state.hints;
   fillAverageComparison();
   overlay.classList.add("visible");
+  dropLeaves();
+}
+
+/** Drops a few autumn leaves from the top of the screen over the
+    victory modal. Each leaf removes itself when its fall ends. */
+function dropLeaves(count = 14) {
+  const kinds = ["🍁", "🍂"];
+  for (let i = 0; i < count; i++) {
+    const leaf = document.createElement("div");
+    leaf.className = "leaf";
+    leaf.setAttribute("aria-hidden", "true");
+    const r = (min, max) => min + Math.random() * (max - min);
+    leaf.style.setProperty("--x", `${r(2, 94)}vw`);
+    leaf.style.setProperty("--size", `${r(20, 34)}px`);
+    leaf.style.setProperty("--dur", `${r(5, 8.5)}s`);
+    leaf.style.setProperty("--delay", `${r(0.3, 3)}s`);
+    leaf.style.setProperty("--sway", `${r(18, 46)}px`);
+    leaf.style.setProperty("--spin", `${r(-300, 300)}deg`);
+    const inner = document.createElement("span");
+    inner.textContent = kinds[i % kinds.length];
+    leaf.appendChild(inner);
+    leaf.addEventListener("animationend", e => {
+      if (e.animationName === "leafFall") leaf.remove();
+    });
+    document.body.appendChild(leaf);
+  }
 }
 
 document.getElementById("close-modal").addEventListener("click", () => {
