@@ -74,7 +74,7 @@ Saves per-day progress: solved words, revealed-letter counts, strike total, comp
 - Tile states: **anchor** (dark, blue border/text), **given** (dark, blue border/text — the free first letter, styled identically to the anchor), **empty** (dark slate), **hinted** (gold, locked reveal), **typed** (player input, lighter border), **solved** (green). The intro demo board teaches these states visually.
 - Mobile-first, max content width 480px. Typing on mobile works via a hidden input (`#ghost-input`) that summons the keyboard; desktop uses direct keydown.
 - Animations: tile flip-in (`flipIn`, rotateX), row shake on wrong guess, strike-counter pop, timer pulse when low, START button breathing glow, modal fade/spring.
-- Branding assets in repo: `wordflow-app-icon.png` (1024², tile-W with gold chain link), `wordflow-banner.png` (1200×630 Open Graph image), `favicon.png` (64), `apple-touch-icon.png` (180). Full social metadata is in the `<head>`.
+- Branding assets in repo: `wordflow-app-icon.png` (1024², white W on a pumpkin-to-maple tile with a gold chain link, recolored for fall), `wordflow-banner.png` (1200×630 Open Graph image), `favicon.png` (64), `apple-touch-icon.png` (180). Full social metadata is in the `<head>`.
 
 ## 6. Deployment & Operations
 
