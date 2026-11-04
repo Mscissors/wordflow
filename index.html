@@ -719,7 +719,7 @@ var WORDFLOW_SEASON = (function () {
     text-decoration: underline;
   }
 
-  #open-stats-win {
+  #open-stats-win, #past-btn {
     background: var(--surface-2);
     color: var(--text);
     font-size: 0.95rem;
@@ -748,8 +748,8 @@ var WORDFLOW_SEASON = (function () {
     margin-top: -4px;
   }
 
-  /* ---------- Stats & Top 10 screen ---------- */
-  #stats-overlay {
+  /* ---------- Stats & Top 10 screen (and the past puzzles list) ---------- */
+  #stats-overlay, #past-overlay {
     position: fixed;
     inset: 0;
     background: var(--overlay-dim);
@@ -762,8 +762,8 @@ var WORDFLOW_SEASON = (function () {
     pointer-events: none;
     transition: opacity 0.3s ease;
   }
-  #stats-overlay.visible { opacity: 1; pointer-events: auto; }
-  #stats-card {
+  #stats-overlay.visible, #past-overlay.visible { opacity: 1; pointer-events: auto; }
+  #stats-card, #past-card {
     position: relative;
     background: var(--surface);
     border: 1px solid var(--surface-2);
@@ -775,7 +775,7 @@ var WORDFLOW_SEASON = (function () {
     overscroll-behavior: contain;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
   }
-  #stats-close {
+  #stats-close, #past-close {
     position: absolute;
     top: 10px;
     right: 10px;
@@ -822,6 +822,39 @@ var WORDFLOW_SEASON = (function () {
   }
   .section-sub { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 8px; }
   .empty-note { color: var(--text-dim); font-size: 0.9rem; text-align: center; padding: 18px 8px; }
+
+  /* Past puzzles list: one row per day, newest first */
+  .past-title { font-size: 1.2rem; margin: 2px 36px 4px 0; color: var(--text); }
+  .past-sub { color: var(--text-dim); font-size: 0.8rem; margin-bottom: 14px; }
+  .past-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    margin-bottom: 6px;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background: var(--surface-2);
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.95rem;
+  }
+  .past-row:active { transform: scale(0.98); }
+  .past-row.current { border-color: var(--accent); }
+  .past-num { font-weight: 800; min-width: 3.2em; }
+  .past-date { flex: 1; color: var(--text-dim); }
+  .past-res { font-weight: 700; color: var(--green); white-space: nowrap; }
+  .past-res.todo { color: var(--text-dim); font-weight: 600; }
+  .puzzle-meta a { color: var(--accent); }
+  #footer-past-btn {
+    display: block;
+    margin: 0 auto 8px;
+    background: transparent;
+    color: var(--accent);
+    font-size: 0.9rem;
+    padding: 8px 14px;
+  }
+  #footer-past-btn[hidden] { display: none; }
 
   /* Strike distribution: one column per strike count, 10+ pooled */
   .dist { display: flex; align-items: flex-end; gap: 2px; height: 104px; }
@@ -948,7 +981,11 @@ var WORDFLOW_SEASON = (function () {
   <!-- The word chain is rendered here by JS -->
   <main id="board"></main>
 
-  <footer id="tagline">A new puzzle every day ✨</footer>
+  <footer id="tagline">
+    <!-- Unhidden by JS once today's puzzle is solved (see §2b) -->
+    <button id="footer-past-btn" hidden>⏪ Play past puzzles</button>
+    A new puzzle every day ✨
+  </footer>
 
   <!-- Invisible input: gives us keyboard events on mobile & desktop alike -->
   <input id="ghost-input" type="text" autocomplete="off" autocorrect="off"
@@ -1004,7 +1041,7 @@ var WORDFLOW_SEASON = (function () {
   <div id="modal-overlay">
     <div id="victory-modal" role="dialog" aria-modal="true">
       <h2>🎉 Chain Complete!</h2>
-      <p>You solved today's WordFlow.</p>
+      <p id="win-sub">You solved today's WordFlow.</p>
       <div class="final-hints" id="final-hints">0</div>
       <div class="final-hints-label">Strikes 🔴</div>
       <!-- How this run compares to today's global average; filled in
@@ -1016,8 +1053,20 @@ var WORDFLOW_SEASON = (function () {
       <div class="win-line gold" id="win-streak"></div>
       <div class="rank-box" id="rank-box"></div>
       <button id="share-btn">📤 Share Result</button>
+      <button id="past-btn">⏪ Play past puzzles</button>
       <button id="open-stats-win">📊 Stats &amp; Top 10</button>
       <button id="close-modal">Close</button>
+    </div>
+  </div>
+
+  <!-- PAST PUZZLES: listed by JS. Only reachable from the win screen,
+       so only after today's puzzle is finished (see §2b). -->
+  <div id="past-overlay">
+    <div id="past-card" role="dialog" aria-modal="true" aria-label="Past puzzles">
+      <button id="past-close" aria-label="Close">✕</button>
+      <h2 class="past-title">Past puzzles</h2>
+      <div class="past-sub">Just for fun. These don't change your stats, streak or the top 10.</div>
+      <div id="past-list"></div>
     </div>
   </div>
 
@@ -1337,15 +1386,60 @@ function daysBetween(fromKey, toKey) {
   return Math.round((Date.parse(toKey) - Date.parse(fromKey)) / 86400000);
 }
 
-/** Selects today's puzzle (globally synchronized via Eastern time). */
-function getTodaysPuzzle() {
+/** The puzzle served on a given Eastern date key. Today's puzzle is
+    puzzleFor(getEasternDateKey()), globally synchronized. */
+function puzzleFor(key) {
   // Clamp at 0 so a device with a badly skewed clock (pre-launch
   // date) still gets puzzle #1 instead of a negative index.
-  const offset = Math.max(0, daysBetween(LAUNCH_DATE, getEasternDateKey()));
+  const offset = Math.max(0, daysBetween(LAUNCH_DATE, key));
   return {
     number: offset + 1,
     chain: PUZZLES[offset % PUZZLES.length]
   };
+}
+
+/* ==============================================================
+   2b. PAST PUZZLES
+   --------------------------------------------------------------
+   Once today's puzzle is finished, the win screen offers
+   "Play past puzzles": a list of every earlier day, each opening
+   as ?day=YYYY-MM-DD with the same chain that day served.
+   The parameter is honored only for a real date from LAUNCH_DATE
+   up to yesterday, and only once today's puzzle is finished on
+   this device (today's entry in `wordflow-history`). Anything else
+   is dropped from the URL and today's puzzle loads as usual.
+   A past play is just for fun: it never touches the /daily
+   counters, the leaderboard, or personal stats and streaks.
+   Progress is saved per day under `wordflow-past-<date>`, and
+   finished results in `wordflow-past` as { "YYYY-MM-DD": strikes }.
+   ============================================================== */
+const todayKey = getEasternDateKey();   // the real Eastern date, always
+const PAST_RESULTS_KEY = "wordflow-past";
+
+function finishedTodayOnThisDevice() {
+  try {   // HISTORY_KEY (§7c) isn't initialized yet this early in the script
+    const h = JSON.parse(localStorage.getItem("wordflow-history")) || {};
+    return !!(h[todayKey] && Number.isInteger(h[todayKey].s));
+  } catch (e) { return false; }
+}
+
+/** The past date being played, or null for today's puzzle. */
+const PAST_DAY = (() => {
+  const day = new URLSearchParams(location.search).get("day");
+  if (!day) return null;
+  const real = /^\d{4}-\d{2}-\d{2}$/.test(day) && !isNaN(Date.parse(day)) &&
+               new Date(day).toISOString().slice(0, 10) === day;   // no Feb 30
+  if (real && daysBetween(LAUNCH_DATE, day) >= 0 && daysBetween(day, todayKey) >= 1 &&
+      finishedTodayOnThisDevice()) return day;
+  try { history.replaceState(null, "", location.pathname); } catch (e) { /* ok */ }
+  return null;
+})();
+
+function loadPastResults() {
+  try {
+    const r = JSON.parse(localStorage.getItem(PAST_RESULTS_KEY));
+    return r && typeof r === "object" && !Array.isArray(r) ? r : {};
+  } catch (e) { return {}; }
 }
 
 /* ==============================================================
@@ -1355,9 +1449,9 @@ function getTodaysPuzzle() {
    refresh restores today's progress, while yesterday's stale
    state is simply ignored (and cleaned up) when a new day begins.
    ============================================================== */
-const puzzle = getTodaysPuzzle();
-const todayKey = getEasternDateKey();   // state is keyed by the Eastern date
-const STORAGE_KEY = "wordflow-state";
+const puzzleKey = PAST_DAY || todayKey;   // the date of the puzzle on the board
+const puzzle = puzzleFor(puzzleKey);
+const STORAGE_KEY = PAST_DAY ? `wordflow-past-${PAST_DAY}` : "wordflow-state";
 
 /* Every hidden word starts with its first letter revealed for free —
    a small head start that costs nothing (see GIVEN_LETTERS below). */
@@ -1369,7 +1463,7 @@ const GIVEN_LETTERS = 1;
                    GIVEN_LETTERS) were revealed via a hint, whether
                    from the button or the countdown timer */
 let state = {
-  date: todayKey,
+  date: puzzleKey,
   sig: puzzle.chain.join("-"),  // identifies WHICH chain this state belongs to
   hints: 0,
   words: {},        // { chainIndex: { solved, hintLetters } }
@@ -1395,7 +1489,7 @@ function loadState() {
     const saved = JSON.parse(raw);
     // Stale state from a previous day — or from a different chain
     // (e.g. the puzzle list was updated)? Discard it: fresh start.
-    if (saved.date !== todayKey || saved.sig !== state.sig) {
+    if (saved.date !== puzzleKey || saved.sig !== state.sig) {
       localStorage.removeItem(STORAGE_KEY);
       return;
     }
@@ -1433,8 +1527,15 @@ const toastEl = document.getElementById("toast");
 let focusedIndex = null;   // chain index of the row being guessed
 let currentTyped = "";     // letters typed for the focused row
 
-document.getElementById("puzzle-meta").textContent =
-  `Puzzle #${puzzle.number} — ${todayKey}`;
+const metaEl = document.getElementById("puzzle-meta");
+if (PAST_DAY) {
+  const back = document.createElement("a");
+  back.href = location.pathname;
+  back.textContent = "Back to today";
+  metaEl.append(`Past puzzle #${puzzle.number} · ${PAST_DAY} · `, back);
+} else {
+  metaEl.textContent = `Puzzle #${puzzle.number} — ${todayKey}`;
+}
 
 /** Builds the whole board once; tiles are updated in place after. */
 function renderBoard() {
@@ -1853,7 +1954,7 @@ let dailyAverageIsReal = false;   // false when it is yesterday's + 2
     The state.reported flag (persisted) guarantees one report per
     player per day, surviving page refreshes. */
 async function reportResult() {
-  if (state.reported) return;
+  if (state.reported || PAST_DAY) return;
   try {
     const res = await fetch(`${STATS_DB}/daily/${todayKey}.json`, {
       method: "PATCH",
@@ -1871,14 +1972,15 @@ async function loadAverageStrikes() {
   const el = document.getElementById("avg-strikes");
   try {
     // Primary: today's real numbers.
-    const today = await (await fetch(`${STATS_DB}/daily/${todayKey}.json`)).json();
+    const today = await (await fetch(`${STATS_DB}/daily/${puzzleKey}.json`)).json();
     if (today && today.players > 0) {
       dailyAverage = today.strikes / today.players;
       dailyAverageIsReal = true;
-      el.textContent = `Today's average: ${dailyAverage.toFixed(1)} strikes ✖`;
+      el.textContent = `${PAST_DAY ? "That day's" : "Today's"} average: ${dailyAverage.toFixed(1)} strikes ✖`;
       fillAverageComparison();   // modal may already be open (returning winner)
       return;
     }
+    if (PAST_DAY) return;   // a past day with no data: no estimate, just no line
     // Fallback: nobody has finished yet today → yesterday's avg + 2.
     const yKey = new Date(Date.parse(todayKey) - 86400000)
       .toISOString().slice(0, 10);
@@ -1931,6 +2033,12 @@ function historyDays(h) {
     safe on every reload of a finished game. */
 function recordToday(extra = {}) {
   if (!state.completed) return null;
+  if (PAST_DAY) {   // past plays keep their own record, outside the stats
+    const r = loadPastResults();
+    r[PAST_DAY] = state.hints;
+    try { localStorage.setItem(PAST_RESULTS_KEY, JSON.stringify(r)); } catch (e) { /* ok */ }
+    return null;
+  }
   const h = loadHistory();
   const entry = Object.assign(h[todayKey] || {}, { n: puzzle.number, s: state.hints });
   if (state.secs) entry.t = state.secs;
@@ -2129,7 +2237,7 @@ async function refreshAuth() {
 /** Writes today's result to the leaderboard, once. Needs a solve
     time, so a game started before timing existed is left off. */
 async function submitScore() {
-  if (!state.completed || state.scoreSent || !state.secs) return;
+  if (PAST_DAY || !state.completed || state.scoreSent || !state.secs) return;
   const a = await getAuth();
   if (!a) return;
   try {
@@ -2178,7 +2286,7 @@ async function loadBoard() {
     boardData = { top: list.slice(0, 10), me, rank: me ? i + 1 : null, pct };
     boardStatus = "ok";
 
-    if (me) {
+    if (me && !PAST_DAY) {   // in past mode, `state` is the past game's
       if (!state.scoreSent) { state.scoreSent = true; saveState(); }
       const prev = loadHistory()[todayKey] || {};
       const extra = {};
@@ -2220,17 +2328,16 @@ function refreshBoardUI() {
 
 /** Win-screen percentile line and rank box. */
 function fillBoardLines() {
-  const b = boardData;
+  const b = PAST_DAY ? null : boardData;   // the board is about today only
   document.getElementById("win-percentile").textContent =
     b && b.pct !== null && b.pct >= 1 ? `You beat ${b.pct}% of players so far today` : "";
-  fillRankBox(document.getElementById("rank-box"));
+  fillRankBox(document.getElementById("rank-box"), b);
 }
 
 /** "You're #3 on today's top 10!" plus the name form, or the saved
     name with a Change link. Empty unless this player is top 10. */
-function fillRankBox(box) {
+function fillRankBox(box, b) {
   box.textContent = "";
-  const b = boardData;
   if (!b || !b.rank || b.rank > 10) return;
   box.append(el("div", "rank-title", `🏆 You're #${b.rank} on today's top 10!`));
 
@@ -2482,11 +2589,11 @@ function renderBoardPanel() {
     const box = el("div", "rank-box");
     box.id = "rank-box-board";
     box.style.margin = "14px 0 0";
-    fillRankBox(box);
+    fillRankBox(box, b);
     p.append(box);
   } else if (b.me && b.pct !== null && b.pct >= 1) {
     p.append(el("div", "board-me", `You beat ${b.pct}% of players so far today`));
-  } else if (!state.completed) {
+  } else if (!state.completed && !PAST_DAY) {
     p.append(el("div", "board-me", "Finish today's puzzle to see where you stand."));
   }
   p.append(el("div", "board-foot", "Fewest strikes wins, fastest time breaks ties. Resets at midnight ET."));
@@ -2521,11 +2628,12 @@ function fillAverageComparison() {
   const el = document.getElementById("vs-average");
   const diff = dailyAverage - state.hints;   // positive = under the average
   const mag = Math.abs(diff).toFixed(1);
+  const day = PAST_DAY ? "that day's" : "today's";
   el.classList.toggle("better", diff >= 0.05);
   el.textContent =
-    diff >= 0.05  ? `${mag} fewer strikes than today's average` :
-    diff <= -0.05 ? `${mag} more strikes than today's average`  :
-                    "Right on today's average";
+    diff >= 0.05  ? `${mag} fewer strikes than ${day} average` :
+    diff <= -0.05 ? `${mag} more strikes than ${day} average`  :
+                    `Right on ${day} average`;
 }
 
 /** "⭐ New personal best!  ·  🔥 5-day streak" */
@@ -2537,7 +2645,11 @@ function fillWinNotes() {
 }
 
 function showVictoryModal() {
+  // Today is solved (or this is a past puzzle, which needs that), so
+  // the list stays reachable from the footer after this modal closes.
+  document.getElementById("footer-past-btn").hidden = false;
   document.getElementById("final-hints").textContent = state.hints;
+  if (PAST_DAY) document.getElementById("win-sub").textContent = `You solved WordFlow #${puzzle.number}.`;
   fillAverageComparison();
   fillWinNotes();
   fillBoardLines();
@@ -2573,6 +2685,56 @@ function dropLeaves(count = 14) {
 document.getElementById("close-modal").addEventListener("click", () => {
   overlay.classList.remove("visible");
 });
+
+/* ---------- Past puzzles list (see §2b) ---------- */
+const pastOverlay = document.getElementById("past-overlay");
+let pastOpen = false;
+
+/** Today first, then every earlier day back to #1. Finished days show
+    their strikes, from the daily history or from past plays. */
+function renderPastList() {
+  const list = document.getElementById("past-list");
+  list.textContent = "";
+  const daily = loadHistory(), past = loadPastResults();
+  const thisYear = todayKey.slice(0, 4);
+  for (let off = daysBetween(LAUNCH_DATE, todayKey); off >= 0; off--) {
+    const key = new Date(Date.parse(LAUNCH_DATE) + off * 86400000).toISOString().slice(0, 10);
+    const isToday = key === todayKey;
+    const row = el("a", "past-row" + (key === puzzleKey ? " current" : ""));
+    row.href = isToday ? location.pathname : `?day=${key}`;
+    const date = isToday ? "Today" : new Intl.DateTimeFormat("en-US", {
+      weekday: "short", month: "short", day: "numeric", timeZone: "UTC",
+      year: key.slice(0, 4) === thisYear ? undefined : "numeric"
+    }).format(new Date(key));
+    const s = daily[key] && Number.isInteger(daily[key].s) ? daily[key].s
+            : Number.isInteger(past[key]) ? past[key] : null;
+    row.append(el("span", "past-num", `#${off + 1}`), el("span", "past-date", date),
+               s === null ? el("span", "past-res todo", "Play ›")
+                          : el("span", "past-res", `✓ ${s} ✖`));
+    list.append(row);
+  }
+}
+
+function openPast() {
+  renderPastList();
+  pastOpen = true;
+  pastOverlay.classList.add("visible");
+  ghostInput.blur();
+  const cur = document.querySelector("#past-list .current");
+  if (cur && PAST_DAY) cur.scrollIntoView({ block: "center" });
+}
+
+function closePast() {
+  pastOpen = false;
+  pastOverlay.classList.remove("visible");
+}
+
+document.getElementById("past-btn").addEventListener("click", openPast);
+document.getElementById("footer-past-btn").addEventListener("click", openPast);
+if (PAST_DAY) document.getElementById("footer-past-btn").hidden = false;
+document.getElementById("past-close").addEventListener("click", closePast);
+pastOverlay.addEventListener("click", e => { if (e.target === pastOverlay) closePast(); });
+document.addEventListener("keydown", e => { if (pastOpen && e.key === "Escape") closePast(); });
 
 /* Spoiler-free result grid: one emoji row per hidden word, top to
    bottom. 🟩 = a letter the player guessed (or the free starting
@@ -2651,9 +2813,9 @@ const startBtn = document.getElementById("start-btn");
 // formatted as UTC so the displayed date matches the Eastern-time
 // puzzle date in every player timezone.
 document.getElementById("intro-meta").textContent =
-  `Puzzle #${puzzle.number} · ` + new Intl.DateTimeFormat("en-US", {
+  `${PAST_DAY ? "Past puzzle" : "Puzzle"} #${puzzle.number} · ` + new Intl.DateTimeFormat("en-US", {
     month: "long", day: "numeric", year: "numeric", timeZone: "UTC"
-  }).format(new Date(todayKey));
+  }).format(new Date(puzzleKey));
 
 loadAverageStrikes();   // fill the intro's average line (async)
 
