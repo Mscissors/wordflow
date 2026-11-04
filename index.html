@@ -632,6 +632,8 @@ var WORDFLOW_SEASON = (function () {
     color: var(--red);
     margin: 10px 0 4px;
   }
+  .win-stats { display: flex; justify-content: center; gap: 44px; }
+  .final-streak { color: var(--gold); }
   .final-hints-label {
     color: var(--text-dim);
     font-size: 0.8rem;
@@ -668,7 +670,7 @@ var WORDFLOW_SEASON = (function () {
     padding: 8px;
   }
 
-  /* Win-screen extras: percentile, streak / personal best, and the
+  /* Win-screen extras: percentile, personal best, and the
      leaderboard rank with its name form. Every line is empty (and
      collapsed) until it has something true to say. */
   .win-line {
@@ -1042,15 +1044,26 @@ var WORDFLOW_SEASON = (function () {
     <div id="victory-modal" role="dialog" aria-modal="true">
       <h2>🎉 Chain Complete!</h2>
       <p id="win-sub">You solved today's WordFlow.</p>
-      <div class="final-hints" id="final-hints">0</div>
-      <div class="final-hints-label">Strikes 🔴</div>
+      <!-- Strikes and (for today's puzzle) the day streak, side by side.
+           The streak is the come-back-tomorrow hook, so it is always
+           shown, even at 1. Past puzzles hide it: they don't count. -->
+      <div class="win-stats">
+        <div class="win-stat">
+          <div class="final-hints" id="final-hints">0</div>
+          <div class="final-hints-label">Strikes 🔴</div>
+        </div>
+        <div class="win-stat" id="win-streak-stat" hidden>
+          <div class="final-hints final-streak" id="final-streak">0</div>
+          <div class="final-hints-label">Day streak 🔥</div>
+        </div>
+      </div>
       <!-- How this run compares to today's global average; filled in
            async, stays empty (and collapsed) if stats are unreachable -->
       <div class="vs-average" id="vs-average"></div>
       <!-- Filled in async from the leaderboard and local history; each
            line stays empty (and hidden) until it has data -->
       <div class="win-line" id="win-percentile"></div>
-      <div class="win-line gold" id="win-streak"></div>
+      <div class="win-line gold" id="win-best"></div>
       <div class="rank-box" id="rank-box"></div>
       <button id="share-btn">📤 Share Result</button>
       <button id="open-stats-win">📊 Stats &amp; Top 10</button>
@@ -2701,12 +2714,14 @@ function fillAverageComparison() {
                     `Right on ${day} average`;
 }
 
-/** "⭐ New personal best!  ·  🔥 5-day streak" */
+/** The day-streak stat beside Strikes (today's puzzle only) and the
+    "⭐ New personal best!" line. */
 function fillWinNotes() {
-  const parts = [];
-  if (winNotes && winNotes.personalBest) parts.push("⭐ New personal best!");
-  if (winNotes && winNotes.streak >= 2) parts.push(`🔥 ${winNotes.streak}-day streak`);
-  document.getElementById("win-streak").textContent = parts.join("  ·  ");
+  const streak = winNotes ? winNotes.streak : 0;
+  document.getElementById("win-streak-stat").hidden = !streak;
+  document.getElementById("final-streak").textContent = streak;
+  document.getElementById("win-best").textContent =
+    winNotes && winNotes.personalBest ? "⭐ New personal best!" : "";
 }
 
 function showVictoryModal() {
