@@ -2271,7 +2271,8 @@ const easternDayFmt = new Intl.DateTimeFormat("en-CA", {
 /* ---------- House entries ----------
    An empty board looks dead to the first players of the day, so from
    2am Eastern the board is topped up to 10 with made-up players with
-   easy-to-beat games (5 to 10 strikes, 3 to 12 minutes). They exist
+   easy-to-beat games (5 to 10 strikes, about 1.5 to 4
+   minutes, longer with more strikes). They exist
    only here in the page, never in Firebase. Every device builds the
    same ten for a given date (seeded by the date), and they only fill
    EMPTY spots: with n real finishers the board shows the best 10 - n
@@ -2317,10 +2318,14 @@ function houseEntries(dateKey) {
   const out = [];
   for (let k = 0; k < 10; k++) {
     const name = pool.splice(Math.floor(rand() * pool.length), 1)[0];
-    out.push({ id: `house-${k}`, house: true, name,
-               s: 5 + Math.floor(rand() * 6),            // 5..10 strikes
-               t: 180 + Math.floor(rand() * 540),        // 3..12 minutes
-               at: at + k });
+    const s = 5 + Math.floor(rand() * 6);                // 5..10 strikes
+    // Time tracks strikes, like a real game: 9..14s per strike (most
+    // are countdown timeouts) plus 6..14s for each of the 7 words.
+    // Stays under the real ceiling of about 15 * (7 + s) seconds.
+    let t = 0;
+    for (let j = 0; j < s; j++) t += 9 + Math.floor(rand() * 6);
+    for (let j = 0; j < 7; j++) t += 6 + Math.floor(rand() * 9);
+    out.push({ id: `house-${k}`, house: true, name, s, t, at: at + k });
   }
   return out.sort(byScore);
 }
