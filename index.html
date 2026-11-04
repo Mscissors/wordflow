@@ -14,6 +14,61 @@
 <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
+<script>
+/* SEASONAL THEME
+   The game wears its fall colors (and fall icons, and the falling
+   leaves on the win screen) from the first day of fall to the first
+   day of winter, every year, automatically. The rest of the year it
+   uses the original blue theme.
+
+   "First day of fall" is the September equinox and "first day of
+   winter" the December solstice, computed astronomically (Meeus's
+   mean-equinox formulas, accurate to minutes) and turned into a US
+   Eastern date, so the theme flips at the same midnight ET as the
+   daily puzzle.
+
+   Runs in <head>, before the page paints, so there is never a flash
+   of the wrong colors. Preview any theme with ?season=fall or
+   ?season=off in the URL. */
+var WORDFLOW_SEASON = (function () {
+  function easternKey(d) {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit"
+    }).format(d);
+  }
+  // Julian Ephemeris Day of a mean equinox/solstice -> Eastern date key
+  function keyFromJDE(jde) { return easternKey(new Date((jde - 2440587.5) * 86400000)); }
+  function fallStart(year) {    // September equinox
+    var Y = (year - 2000) / 1000;
+    return keyFromJDE(2451810.21715 + 365242.01767 * Y - 0.11575 * Y * Y
+                      + 0.00337 * Y * Y * Y + 0.00078 * Y * Y * Y * Y);
+  }
+  function winterStart(year) {  // December solstice
+    var Y = (year - 2000) / 1000;
+    return keyFromJDE(2451900.05952 + 365242.74049 * Y - 0.06223 * Y * Y
+                      - 0.00823 * Y * Y * Y + 0.00032 * Y * Y * Y * Y);
+  }
+  var season = "";
+  try {
+    var today = easternKey(new Date());
+    var year = +today.slice(0, 4);
+    if (today >= fallStart(year) && today < winterStart(year)) season = "fall";
+    var forced = new URLSearchParams(location.search).get("season");
+    if (forced !== null) season = forced === "fall" ? "fall" : "";
+  } catch (e) { /* very old browser: keep the default theme */ }
+
+  if (season) {
+    document.documentElement.setAttribute("data-season", season);
+    // Seasonal icon set: favicon-fall.png, apple-touch-icon-fall.png
+    var links = document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]');
+    for (var i = 0; i < links.length; i++) {
+      links[i].href = links[i].getAttribute("href").replace(".png", "-" + season + ".png");
+    }
+  }
+  return season;
+})();
+</script>
+
 <!-- Search & social metadata: og:image is what iMessage, WhatsApp,
      Discord, etc. display when the link is shared (absolute URL
      required — relative paths are ignored by most platforms) -->
@@ -34,7 +89,35 @@
      theming trivial; transitions handle all reveal animations.
      ============================================================ */
   :root {
-    /* Fall palette: espresso browns, pumpkin, maple, moss, harvest gold */
+    /* Default (non-seasonal) palette */
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface-2: #232736;
+    --tile-empty: #2a2f40;
+    --tile-border: #3a4056;
+    --tile-focus: #4a5578;
+    --text: #eef0f6;
+    --text-dim: #8b91a7;
+    --accent: #5b8cff;
+    --accent-2: #7c5bff;
+    --green: #35c47c;
+    --green-dark: #2a9d63;
+    --red: #ff4757;
+    --gold: #ffd166;
+    --gold-2: #ffb347;                       /* end of the hint button gradient */
+    --strike-glow: rgba(255, 71, 87, 0.45);
+    --hint-glow: rgba(255, 209, 102, 0.35);
+    --start-glow: rgba(91, 140, 255, 0.35);
+    --start-glow-2: rgba(124, 91, 255, 0.6);
+    --overlay-dim: rgba(8, 10, 15, 0.75);
+    --radius: 12px;
+    --tile-size: clamp(38px, 9vw, 52px);
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Fall palette: espresso browns, pumpkin, maple, moss, harvest gold.
+     Switched on by the SEASONAL THEME script in <head>. */
+  html[data-season="fall"] {
     --bg: #17110d;
     --surface: #221913;
     --surface-2: #2e231a;
@@ -49,9 +132,12 @@
     --green-dark: #587c2f;
     --red: #d9412f;
     --gold: #f2b544;
-    --radius: 12px;
-    --tile-size: clamp(38px, 9vw, 52px);
-    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --gold-2: #e8892b;
+    --strike-glow: rgba(217, 65, 47, 0.45);
+    --hint-glow: rgba(242, 181, 68, 0.35);
+    --start-glow: rgba(242, 140, 40, 0.35);
+    --start-glow-2: rgba(200, 64, 44, 0.6);
+    --overlay-dim: rgba(12, 8, 5, 0.75);
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -125,7 +211,7 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    box-shadow: 0 4px 14px rgba(217, 65, 47, 0.45);
+    box-shadow: 0 4px 14px var(--strike-glow);
     transition: transform 0.18s ease;
     pointer-events: none;      /* never blocks taps on the row */
   }
@@ -317,12 +403,12 @@
     bottom: 8px;
     transform: translateX(-50%);
     display: none;             /* shown once docked to a row */
-    background: linear-gradient(135deg, var(--gold), #e8892b);
+    background: linear-gradient(135deg, var(--gold), var(--gold-2));
     color: #1a1a1a;
     font-size: 1.05rem;
     padding: 14px 34px;
     white-space: nowrap;
-    box-shadow: 0 4px 16px rgba(242, 181, 68, 0.35);
+    box-shadow: 0 4px 16px var(--hint-glow);
   }
   /* Narrow phones: a slightly smaller pill so it doesn't crowd short rows. */
   @media (max-width: 430px) {
@@ -487,8 +573,8 @@
 
   /* Soft breathing glow makes START feel pressable */
   @keyframes startPulse {
-    0%, 100% { box-shadow: 0 4px 16px rgba(242, 140, 40, 0.35); transform: scale(1); }
-    50%      { box-shadow: 0 6px 30px rgba(200, 64, 44, 0.6);   transform: scale(1.04); }
+    0%, 100% { box-shadow: 0 4px 16px var(--start-glow);   transform: scale(1); }
+    50%      { box-shadow: 0 6px 30px var(--start-glow-2); transform: scale(1.04); }
   }
   #start-btn {
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
@@ -502,7 +588,7 @@
   #modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(12, 8, 5, 0.75);
+    background: var(--overlay-dim);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
@@ -582,7 +668,7 @@
     padding: 8px;
   }
 
-  /* ---------- Falling leaves (win screen) ----------
+  /* ---------- Falling leaves (win screen, fall season only) ----------
      A handful of leaves drift down over the victory modal. Each leaf
      gets its own start column, size, duration, delay and sway via
      CSS variables set in JS. Above the modal, never catches taps. */
@@ -1570,7 +1656,7 @@ function showVictoryModal() {
   document.getElementById("final-hints").textContent = state.hints;
   fillAverageComparison();
   overlay.classList.add("visible");
-  dropLeaves();
+  if (WORDFLOW_SEASON === "fall") dropLeaves();
 }
 
 /** Drops a few autumn leaves from the top of the screen over the
@@ -1668,6 +1754,11 @@ renderBoard();
 updateHintCounter();
 
 const introOverlay = document.getElementById("intro-overlay");
+
+// Seasonal logo on the intro card (see SEASONAL THEME in <head>).
+if (WORDFLOW_SEASON) {
+  document.querySelector(".intro-icon").src = `apple-touch-icon-${WORDFLOW_SEASON}.png`;
+}
 const startBtn = document.getElementById("start-btn");
 
 // "Puzzle #1 · July 18, 2026" — the date key is parsed as UTC and
