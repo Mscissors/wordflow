@@ -2126,10 +2126,11 @@ async function loadAverageStrikes() {
    7c. PERSONAL HISTORY (localStorage, key `wordflow-history`)
    --------------------------------------------------------------
    One small record per finished day, kept on this device:
-     { "2026-11-03": { n: 109, s: 4, t: 212, a: 5.2, p: 82, r: 3 } }
+     { "2026-11-03": { n: 109, s: 4, t: 212, a: 5.2, p: 82, r: 3, f: 7 } }
    n puzzle number, s strikes, t solve seconds, a that day's global
    average, p percentile (share of the day's field this player
-   beat), r best leaderboard rank seen that day (top 10 only).
+   beat), r best leaderboard rank seen that day (top 10 only), f
+   final rank once the day is over (0 if it couldn't be confirmed).
    Only n and s are guaranteed. No account and no server: this is
    what the "Your stats" tab is built from, and it works offline.
    History starts on the day it shipped; earlier days were never
@@ -2202,7 +2203,8 @@ function computeStats(h) {
     streak,
     maxStreak,
     dist,
-    top10: days.filter(k => h[k].r >= 1 && h[k].r <= 10).length
+    // Final rank only, so a day counts once it's over (see finalizeTopTen).
+    top10: days.filter(k => h[k].f >= 1 && h[k].f <= 10).length
   };
 }
 
@@ -2381,8 +2383,6 @@ const easternDayFmt = new Intl.DateTimeFormat("en-CA", {
   timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit"
 });
 
-/** Reads today's scores and names, ranks them, and refreshes every
-    place that shows the board. */
 /* ---------- House entries ----------
    An empty board looks dead to the first players of the day, so from
    2am Eastern the board is topped up to 10 with made-up players with
@@ -2448,6 +2448,27 @@ function houseEntries(dateKey) {
 /** Leaderboard order: fewest strikes, then fastest, then earliest. */
 function byScore(x, y) { return x.s - y.s || x.t - y.t || x.at - y.at; }
 
+/** One day's board from its raw /scores and /names reads. `list` is
+    the real finishers, best first; `ranked` adds house entries in
+    any empty top-10 spots when `withHouse` is set. */
+function rankDay(dateKey, scores, names, withHouse) {
+  const list = Object.entries(scores || {})
+    .filter(([, v]) => v && Number.isInteger(v.s) && Number.isInteger(v.t) &&
+                       typeof v.at === "number" &&
+                       easternDayFmt.format(new Date(v.at)) === dateKey)
+    .map(([id, v]) => {
+      let name = names && typeof names[id] === "string" ? names[id] : null;
+      if (name && nameProblem(name)) name = null;   // belt and braces
+      return { id, s: v.s, t: v.t, at: v.at, name };
+    })
+    .sort(byScore);
+  const house = withHouse && list.length < 10
+    ? houseEntries(dateKey).slice(0, 10 - list.length) : [];
+  return { list, ranked: list.concat(house).sort(byScore) };
+}
+
+/** Reads today's scores and names, ranks them, and refreshes every
+    place that shows the board. */
 async function loadBoard() {
   if (!FIREBASE_API_KEY) return;
   if (!boardData) boardStatus = "loading";
@@ -2458,21 +2479,7 @@ async function loadBoard() {
       fetch(`${STATS_DB}/names/${todayKey}.json`).then(r => r.ok ? r.json() : null)
     ]);
     const uid = (storedAuth() || {}).uid;
-    const list = Object.entries(scores || {})
-      .filter(([, v]) => v && Number.isInteger(v.s) && Number.isInteger(v.t) &&
-                         typeof v.at === "number" &&
-                         easternDayFmt.format(new Date(v.at)) === todayKey)
-      .map(([id, v]) => {
-        let name = names && typeof names[id] === "string" ? names[id] : null;
-        if (name && nameProblem(name)) name = null;   // belt and braces
-        return { id, s: v.s, t: v.t, at: v.at, name };
-      })
-      .sort(byScore);
-
-    // Top up empty spots with the best of the day's house entries.
-    const house = list.length < 10 && houseOpen()
-      ? houseEntries(todayKey).slice(0, 10 - list.length) : [];
-    const ranked = list.concat(house).sort(byScore);
+    const { list, ranked } = rankDay(todayKey, scores, names, houseOpen());
 
     const i = uid ? ranked.findIndex(e => e.id === uid) : -1;
     const me = i >= 0 ? ranked[i] : null;
@@ -2496,6 +2503,46 @@ async function loadBoard() {
     if (!boardData) boardStatus = "error";
   }
   refreshBoardUI();
+}
+
+/* ---------- Top-10 finishes count only at the end of the day ----------
+   The board keeps moving until midnight, so being #1 at 12:05am
+   proves nothing. During the day `r` only marks a day worth checking.
+   Once the day is over, its scores are frozen (any entry stamped
+   after midnight is ignored), so they are read one more time and the
+   player's final rank goes in `f`, which is what the stat counts.
+   f = 0 means the score wasn't found, so the day can't be confirmed
+   and doesn't count. Each day is checked once, and only if it ever
+   showed a top-10 rank: anyone ranked 11th or lower on their first
+   look can't climb back, because by then the house entries are gone
+   and new finishers only push people down. */
+const FINAL_MARGIN_MS = 15 * 60000;   // wait past midnight, for fast device clocks
+let finalizing = false;
+
+async function finalizeTopTen() {
+  if (!FIREBASE_API_KEY || finalizing) return;
+  const uid = (storedAuth() || {}).uid;
+  if (!uid) return;
+  const over = getEasternDateKey(new Date(Date.now() - FINAL_MARGIN_MS));
+  const h = loadHistory();
+  const pending = historyDays(h).filter(k =>
+    k < over && h[k].r >= 1 && h[k].r <= 10 && !Number.isInteger(h[k].f));
+  if (!pending.length) return;
+  finalizing = true;
+  try {
+    for (const k of pending) {
+      const scores = await fetch(`${STATS_DB}/scores/${k}.json`)
+        .then(r => r.ok ? r.json() : Promise.reject(r));
+      const rank = rankDay(k, scores, null, true).ranked.findIndex(e => e.id === uid) + 1;
+      const fresh = loadHistory();   // re-read: another tab may have written since
+      if (fresh[k]) { fresh[k].f = rank; saveHistory(fresh); }
+    }
+  } catch (e) {
+    /* offline: the rest are checked on the next visit */
+  } finally {
+    finalizing = false;
+  }
+  if (statsOpen) renderMinePanel();
 }
 
 /** Saves a leaderboard name. Resolves to null, or an error message. */
@@ -2619,6 +2666,7 @@ function openStats(tab) {
   statsOverlay.classList.add("visible");
   ghostInput.blur();   // keep keystrokes out of the game behind
   loadBoard();         // the board moves all day: always refresh
+  finalizeTopTen();    // in case midnight passed with the page open
 }
 
 function closeStats() {
@@ -3023,6 +3071,7 @@ document.getElementById("intro-meta").textContent =
   }).format(new Date(puzzleKey));
 
 loadAverageStrikes();   // fill the intro's average line (async)
+finalizeTopTen();       // confirm top-10 finishes from days that have ended
 
 /** Dismisses the intro and hands scrolling back to the page. */
 function closeIntro() {
